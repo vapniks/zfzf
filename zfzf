@@ -1,0 +1,358 @@
+# -*- mode: sh -*-
+# -*- (sh-set-shell "zsh") -*-
+# zsh widget for fzf with stored options. Requires fzf: https://github.com/junegunn/fzf
+#
+# OVERVIEW:
+# 
+# When called as a normal function you should supply it with a string argument containing the command whose
+# output will be piped to fzf.
+# When used as a widget zfzf will prompt the user for a command, and then pipe its output to fzf (unless a numeric
+# prefix arg is used, see below).
+# At this first prompt you have full access to normal editing keybindings, and a history of previous zfzf commands.
+#
+# HISTORY FILES:
+# 
+# The first time it is run the existing history is searched for commands that pipe output to fzf, and these are
+# placed in a separate history file for zfzf (default is ~/.zfzf_history).
+# Separate files are used for storing fzf query histories of different source commands. You can navigate the query
+# history by pressing ctrl-n/p.
+# By default the query history files are stored in ~/.zfzfhistdir/ with names being the checksums of the corresponding input
+# commands. You can specify a different directory and different filenames with the fzf-histdir and fzf-histfile zstyles (see below).
+# This can be useful if you want several different command lines to share the same history file.
+#
+# PREDEFINED COMMANDS & CACHED OUTPUT:
+#
+# You can specify predefined commands which can be accessed by either using a numeric prefix key when you start zfzf,
+# or by pressing alt-1..9 at the fzf prompt after output has already been listed. In the latter case the current listing will
+# switch to the output of the command associated with the numeric key pressed, and you can press alt-0 to switch back to the
+# initial output (see src-cmd zstyle below).
+# By default when switching output the command will be executed in a clean environment which may not produce the desired output.
+# Also some commands may be slow to execute. In these cases you may prefer to cache the output which can be done using the
+# cache-timeout zstyle to set a timeout for the cache file (see below). To ensure that the preview environment also mimics the
+# calling environment you could source files containing the output of "typeset -p" & "typeset -f". These files can be created
+# automatically in the same directory as the other cache files by setting the cache-auxiliary to a timeout value.
+# This will only work if you have a checksum command such as md5sum installed on your system.
+# To delete the cache file for the initial input command press alt-D (it will be refreshed when you next start zfzf
+# with that command).
+#
+# PREVIEW WINDOW, HEADER, HELP FILE, OUTPUT TRANSFORMATION & OTHER ZSTYLES:
+#
+# To specify what should appear in the fzf preview window for a given command use the preview zstyle (see below).
+# When the alt-v key is pressed the output of the preview command will be piped to ${PAGER}, unless this keybinding
+# is overridden using other-opts. The other-opts zstyle can be used to specify other options for fzf such as extra
+# keybindings, or to override default fzf options.
+# By default a header line showing the default keybindings will be displayed, along with the contents of the $FZF_HEADER
+# variable. You can add extra text (e.g. to display info on extra keybindings defined in other-opts) using the header zstyle
+# which will display an extra header line containing the extra text.
+# You can associate a text file with each input command using the helpfile zstyle. Then when the alt-h key is pressed the
+# contents of that file will be displayed by $PAGER. Alternatively you can specify a command to be run to produce the help text.
+# You can also specify how selected output lines should be transformed before being placed on the command line when
+# the enter key is pressed, e.g. parameter names from typeset output are wrapped in ${}. See the query-pat & replace-str
+# zstyles below. Note that this will affect any output that is printed to the command line from actions you may have
+# bound to keys using the other-opts zstyle (see below).
+#
+# The full list of available styles & contexts is shown below:
+#
+# ':zfzf:<N>' src-cmd            - predefined command line to use for numeric argument <N>
+# ':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=~/.zfzf_history)
+# ':zfzf' histsize               - maximum number of items allowed in history file (default=100)
+# ':zfzf' fzf-histdir            - directory in which to store query history files
+# ':zfzf:<PATTERN>' fzf-histfile - history filename for fzf queries for output from command lines matching <PATTERN>
+#                                  (default is to use a 5 char checksum of the command line).
+# ':zfzf' tmpdir                 - temporary directory used to store memoization files and other info
+#                                  (default is /dev/shm or else /tmp).
+# ':zfzf:<PATTERN>' cache-timeout- if set to <S> then if the input command line matches <PATTERN>, its output will be 
+#                                  saved to a temporary file, unless that file already exists and is less than <S> seconds
+#                                  old. The next time the same command line is used for input, the file will be read
+#                                  instead. This is useful when using the alt-1..9 keys to switch between different
+#                                  command line inputs as these would otherwise be executed in a subshell with a clean
+#                                  environment which might not produce the output you want.
+#                                  Note: this requires that a checksum command such as md5sum is available on the system.
+# ':zfzf' checksum-cmd           - a command for creating checksums (default is md5sum). The command line will be piped
+#                                  into this function, and the first 5 chars of the returned checksum used for cache files.
+# ':zfzf' cache-auxiliary        - if set to <S> then auxiliary files zfzf_parameters & zfzf_functions will be created
+#                                  in the temporary directory (tmpdir zstyle) if they don't already exist or are older than
+#                                  <S> seconds. These files contain the output of typeset -p & typeset -f respectively,
+#                                  and can be sourced in preview commands to ensure that the preview environment mimics
+#                                  the calling environment.
+# ':zfzf:<PATTERN>' preview      - shell code for fzf --preview option for command lines matching <PATTERN>
+#                                  (default is "print {}"). NOTE: if you don't get the desired results using this zstyle
+#                                  you can override it by adding a --preview=".." to other-opts (see below). However in that
+#                                  case the same preview method will be used when you switch inputs by pressing alt-0-9
+# ':zfzf:<PATTERN>' sepchar      - used internally by the preview code. It should be set to a char that is unlikely
+#                                  to occur in the output of command lines matching <PATTERN>. Any lines in the command
+#                                  output listing that contain this char cannot be previewed (default is "&")
+# ':zfzf:<PATTERN>' query-pat    - query-pat & replace-str are used for altering output; 
+# ':zfzf:<PATTERN>' replace-str  - they are used in a ${(@)LINES//query-pat/replace-str} parameter 
+#                                  replacement construct where LINES contains the output lines.
+#                                  This means that each line will be compared with the query pattern,
+#                                  and if any part matches then that part will be replaced by the
+#                                  replacement string. See section 14.8 (Filename Generation) of the
+#                                  zsh manual for more info about pattern & replacement strings.
+# ':zfzf:<PATTERN>' header       - extra text to display under the header line for command lines matching <PATTERN>
+#                                  (e.g. to display extra keybindings defined in other-opts).
+# ':zfzf:<PATTERN>' helpfile     - for command lines matching <PATTERN> the location of a text file, or a command line
+#                                  producing text to display when the alt-h key is pressed.
+# ':zfzf:<PATTERN>' other-opts   - other fzf options used for command lines matching <PATTERN>
+#                                  (default is "--multi --height=50% --preview-window=down:wrap").
+# ':zfzf' debug                  - set to non-empty to print internal debugging info
+#
+# TIPS:
+# - You can use the other-opts style to bind keys that print output to the command line, but bear in mind that the output
+#   will be affected by the query-pat & replace-str zstyles. To ensure that certain outputs are not affected, use the ~ pattern
+#   operator to exclude certain matches, e.g. PAT1~PAT2 matches PAT1 but not PAT2, you may also need to use (#s) & (#e) in query-pat
+#   to prevent PAT1 matching part of the string, e.g. (#s)*PAT1*(#e)~*PAT2*
+# - Any commands run by the fzf preview or execute actions are run in a subshell with its own fresh environment
+#   so you may need to source some files &/or change some options to get the behaviour you want.
+# - Placeholder expressions in fzf preview & execute actions, e.g. {}, {+}, are quoted which may cause problems if you
+#   want to use them as arguments to commands. You can get around this by assigning them to parameters, and then using
+#   the parameter as the command argument, e.g: tmpvar=({+}); print - \"\${tmpvar//foo/bar}\"
+#   or by using eval, e.g: eval \"print - {}\"
+# - You should quote $'s for parameters that appear in fzf --bind="..." arguments in the other-opts zstyle, e.g:
+#   '--bind="alt-E:execute(tmpvar=foo; print \${tmpvar})"'
+#
+# Examples:
+#
+# TODO:
+# Use numeric argument 1 for browsing files in the current directory, and 2 for browsing syscall manpages:
+# > zstyle ':zfzf:0' src-cmd "cat ${HOME}/.zfzf_history"
+# > zstyle ":zfzf:cat*${HOME}/.zfzf_history" keybind-opts "--bind='enter:execute(zfzf {})'"
+# > zstyle ":zfzf:cat*${HOME}/.zfzf_history" preview "eval {}"
+# > zstyle ':zfzf:1' src-cmd 'ls ./*'
+# > zstyle ':zfzf:2' src-cmd 'apropos -s 2 ".*"'
+# > zstyle ':zfzf:3' src-cmd 'print -l - ${history}'
+# > zstyle ':zfzf:4' src-cmd 'print -l - ${(k)aliases}'
+# > zstyle ':zfzf:5' src-cmd 'set -o'
+# > zstyle ':zfzf:6' src-cmd 'typeset +' #TODO: set enter key to vared?
+# > zstyle ':zfzf:7' src-cmd 'typeset +f'
+# > zstyle ':zfzf:typeset +' preview 'print - \$\{{-1}\}'
+# > zstyle ':zfzf:typeset +f' preview 'which {+}'
+# > zstyle ':zfzf:typeset +f' preview "typeset -a fpath=(${fpath}) && ( autoload +XU - {+}; which - {+} )"
+
+# WARNING: this code involved a lot of string & quotation wrangling to get it to work properly. Alter at your peril.
+# TODO: allow piping data in. Some way of changing the preview (& help?) command for piped input?
+#       Allow loading new set of prefix key src commands. 
+zfzf() {
+    emulate -LR zsh
+    setopt extendedglob histignoredups histignorealldups histfindnodups histignorespace histlexwords
+    setopt appendhistory histreduceblanks histsavenodups
+    typeset -a lines
+    unsetopt extendedhistory
+    local REPLY orig_lbuffer orig_rbuffer orig_prompt srccmd histdir histfile histsize err 
+    local cmdoutput retval debug i prevopt tmpdir cacheaux
+    local ctxt=':zfzf'
+    zstyle -s "${ctxt}" tmpdir tmpdir || [[ -d /dev/shm && -w /dev/shm ]] && tmpdir=/dev/shm || tmpdir=/tmp
+    zstyle -s "${ctxt}" debug debug 
+    zstyle -s "${ctxt}:${NUMERIC}" src-cmd srccmd
+    zstyle -s "${ctxt}" prompt-histfile histfile || histfile="${HOME}/.zfzf_history"
+    if [[ ! -a ${histfile} ]]; then
+	# create & populate ${histfile} if it doesn't already exist
+    	print -l - ${(u)${(M)history:#*\| #fzf[^\)]#}//\| #fzf[^\)]#} > "${histfile}"
+	export zfzf_last_hist_item="${${(k@)history}[1]}"
+    fi
+    zstyle -s "${ctxt}" histsize histsize || histsize=100
+    zstyle -s "${ctxt}" fzf-histdir histdir || histdir="${HOME}/.zfzfhistdir"
+    zstyle -s "${ctxt}" cache-auxiliary cacheaux || zstyle -s "${(q)ctxt}" cache-auxiliary cacheaux
+    if [[ -n $cacheaux && -n "$(command -v ${checksumcmd})" ]]; then
+	local parametersfile="${tmpdir}/zfzf_parameters" functionsfile="${tmpdir}/zfzf_functions"
+	if [[ ! -a $parametersfile ]] || (($(date +%s)-$(stat -c %Y ${parametersfile}) > cacheaux)); then
+	    # remove builtin parameters before saving to avoid breakage
+    	    typeset -p|sed -Ee '/^typeset( [-\+][A-Za-z0-9]+)? (-[a-zA-Z0-9]*r[a-zA-Z0-9]*)/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(CURRENT|ISEARCHMATCH_[A-Z]+|(Q?I)?PREFIX|compstate)=/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(words|(L|R|CUT|PRE)?BUFFER(LINES)?|CURSOR|HISTNO|LASTABORTEDSEARCH)=/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(MARK|NUMERIC|(PRE|POST)DISPLAY|REGION_ACTIVE|region_highlight)=/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(UNDO_(LIMIT|CHANGE)_NO|YANK_(START|END)|ZLE_STATE)=/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(killring|registers|(Q?I)?SUFFIX(_[A-Z]+)?)=/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(dis_)?(functions(_source)?|builtins|reswords|patchars|[gs]?aliases)($|=)/d'\
+	                   -e '/^typeset ([-\+][^ ]{1,4} )*(job(dirs|texts|states)|nameddirs|user(dirs|groups))($|=)/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(func(stack|(file|source)?trace)|parameters|modules|dirstack)($|=)/d' \
+			   -e '/^typeset ([-\+][^ ]{1,4} )*(history(words)?|options|commands)($|=)/d' > ${parametersfile}
+	fi
+	if [[ ! -a $functionsfile ]] || (($(date +%s)-$(stat -c %Y ${functionsfile}) > cacheaux)); then
+    	    typeset -f > ${functionsfile}
+	fi
+    fi
+    mkdir -pv ${histdir}
+    orig_lbuffer="${LBUFFER}"
+    orig_rbuffer="${RBUFFER}"
+    orig_prompt="${PROMPT}"
+    {
+	if [[ -n "${1:-${srccmd}}" ]]; then
+	    REPLY="${1:-${srccmd}}"
+	else
+	    typeset -aU newhistitems zstyleitems
+	    fc -ap ${histfile} ${histsize} # set the history list
+	    # add items bound to prefix keys by zstyle
+	    zstyleitems=("${(f)$(zstyle -L ':zfzf:*' src-cmd|sed 's/zstyle :zfzf:. src-cmd .\(.*\)./\1/')}")
+	    for item in "${zstyleitems[@]}"; do
+		if [[ -z ${history[(re)${item}]} ]] { print -S - "${item}" }
+	    done
+	    # extract new fzf input commands from the standard history list
+	    if [[ ${zfzf_last_hist_item} != ${${(k@)history}[1]} ]]; then
+		: ${zfzf_last_hist_item:=${${(k@)history}[((HISTSIZE-1))]}}
+		local age="$(stat -c %Y ~/.zsh_history)"
+		local awkprog="/.\\| *fzf[^\)]*\$/{if(\$2>${age}){\$1=\$2=\"\";sub(/\\| *fzf.*/,\"\");print}}"
+		newhistitems=("${(f)$(fc -t '%s' -l ${zfzf_last_hist_item}|awk ${awkprog})}")
+		zfzf_last_hist_item="${${(k@)history}[1]}"
+	    fi
+	    # add any new fzf input commands (after removing initial whitespace) to the zfzf history list
+	    for item in ${newhistitems//(#s) #}; do
+		if [[ -z ${history[(re)${item}]} ]] { print -S - "${item}" }
+	    done
+	    # remove variables from prompt since these aren't expanded by read-from-minibuffer
+	    PROMPT="${orig_prompt//\$\([^\)]##\)}"
+	    # prompt the user for the input command
+	    read-from-minibuffer "Input command: "
+	    # reset the buffer since read-from-minibuffer changes it
+	    LBUFFER="${orig_lbuffer}"
+	    RBUFFER="${orig_rbuffer}"
+	    zle reset-prompt
+	    (( $? )) && return
+	    print -S - "${REPLY}" # save input command to history file
+	fi
+        # remove trailing comment from command before evaling it
+        local cachetimeout modtime cachefile1 cachefile2 docache freshfile checksumcmd checksum
+	zstyle -s "${ctxt}:${REPLY}" cache-timeout cachetimeout || zstyle -s "{ctxt}:${(q)REPLY}" cache-timeout cachetimeout
+	zstyle -s "${ctxt}:${REPLY}" checksum-cmd checksumcmd || zstyle -s "${ctxt}:${(q)REPLY}" checksum-cmd checksumcmd || \
+	    checksumcmd="md5sum"
+	checksum="${$(print ${REPLY%%\#[^)\}]#}|${checksumcmd})[1,5]}"
+	cachefile1="${tmpdir}/zfzf_${checksum}"
+	#print "HERE" > /dev/shm/test
+	if [[ -n $cachetimeout && -n "$(command -v ${checksumcmd})" ]]; then
+	    docache=1
+	fi
+	if [[ $docache == 1 && -a $cachefile1 ]]; then
+	    freshfile=$(($(date +%s)-$(stat -c %Y "$cachefile1") <= ${cachetimeout}))
+	fi
+	if [[ $docache == 1 && $freshfile == 1 ]]; then
+	    cmdoutput="$(cat ${cachefile1})"
+	else
+	    cmdoutput="$(eval ${REPLY%%\#[^)\}]#})"
+	fi
+	err=${?}
+	if [[ ${err} = 0 ]]; then
+	    local fzfhistfile1 fzfhistfile2 previewcmd fzfopts fzfopts2 statefile keysfile p1 p2 s header helpfile
+	    zstyle -s "${ctxt}:${REPLY}" cache-timeout cachetimeout
+	    if [[ $docache == 1 && $freshfile != 1 ]]; then
+		print "${cmdoutput}" > $cachefile1
+	    fi
+	    # get the first word of the input command line (if it's an alias, then first expand it), 
+	    # and use this as the default name for the fzf history file.
+	    local srccmd2 cmdwd="${${(z)${aliases[${${(z)REPLY}[(w)1]}]:-${${(z)REPLY}[(w)1]}}}[(wps:$'\0':)1]}"
+	    zstyle -s "${ctxt}:${REPLY}" fzf-histfile fzfhistfile1 || zstyle -s "${ctxt}:${(q)REPLY}" fzf-histfile fzfhistfile1 || \
+		fzfhistfile1="${checksum}"
+	    # get the preview command for the current input, and save it to the preview file
+	    zstyle -s "${ctxt}:${REPLY}" preview previewcmd || zstyle -s "${ctxt}:${(q)REPLY}" preview previewcmd || \
+		previewcmd="print - \"{}\""
+	    zstyle -s "${ctxt}:${REPLY}" query-pat p1 || zstyle -s "${ctxt}:${(q)REPLY}" query-pat p1
+	    zstyle -s "${ctxt}:${REPLY}" replace-str p2 || zstyle -s "${ctxt}:${(q)REPLY}" replace-str p2
+	    zstyle -s "${ctxt}:${REPLY}" header header || zstyle -s "${ctxt}:${(q)REPLY}" header header
+	    zstyle -s "${ctxt}:${REPLY}" helpfile helpfile || zstyle -s "${ctxt}:${(q)REPLY}" helpfile helpfile	    
+	    statefile="${tmpdir}/zfzf_state"
+	    print "${previewcmd}" > $statefile
+	    print "${p1}" >> $statefile
+	    print "${p2}" >> $statefile
+	    print "${helpfile}" >> $statefile
+	    print "${fzfhistfile1}" >> $statefile
+	    keysfile="${tmpdir}/zfzf_keys"
+	    zstyle -L ':zfzf:[1-9]' src-cmd|sed -e 's/^zstyle :zfzf:/alt-/' -e 's/src-cmd/=/' > $keysfile
+	    print "alt-h = show help specific to the currently displayed input lines" >> $keysfile
+	    # Set fzf to read the preview command from the preview file (which is updated on startup and with the reload action)
+	    zstyle -s "${ctxt}:${REPLY}" sepchar s || zstyle -s "${ctxt}:${(q)REPLY}" sepchar s || s='<'
+	    # some hard wrangling required here to make this work in most situations; read the preview command from the state file,
+	    #   then substitute braces with appropriate word from selected line
+	    previewopt="\$(set -o extendedglob; tmpvar={}; head -1 ${statefile}|sed -E \"s${s}\\\{\\\}${s}\${\${(qqq)tmpvar//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\""
+	    for i in {1..5}; do
+	    	previewopt+="|{tmpvar={$i}; sed -E \"s${s}\\\{$i\\\}${s}\${(qqq)tmpvar}${s}\"}"
+	    	previewopt+="|{tmpvar={-$i};sed -E \"s${s}\\\{-$i\\\}${s}\${(qqq)tmpvar}${s}\"}"
+	    	previewopt+="|{tmpvar={+$i};sed -E \"s${s}\\\{\+$i\\\}${s}\${(qqq)tmpvar}${s}\"}"
+	    done
+	    previewopt+=")"
+	    fzfopts="--history='${histdir}/${fzfhistfile1}' --preview='eval ${previewopt}' "
+	    # Now set the keybindings. alt-0-9 reload sources from cachefiles if possible, otherwise from executing commands.
+	    fzfopts+=" --bind='enter:accept,ctrl-j:accept'"
+	    fzfopts+=" --bind='alt-v:execute(eval ${previewopt}|${PAGER} >&2)'"
+	    fzfopts+=" --bind='alt-h:execute(helpfile=\$(sed -n '4p' ${statefile}); if [[ -n \"\${helpfile}\" ]];then if [[ -a \"\${helpfile}\" ]]; then $PAGER \"\${helpfile}\" >&2;else eval \"\${helpfile}\" >&2;fi ;fi)'"
+	    fzfopts+=" --bind='ctrl-h:execute($PAGER $keysfile >&2)'"
+	    previewcmd="${(q)previewcmd//(#b)\{([0-9+-]#)\}/{${match[1]}\}}"
+	    fzfopts+=" --bind='alt-0:execute(print - \"${previewcmd}\n${p1}\n${p2}\n${helpfile}\" > ${statefile})+reload(${REPLY%%\#[^)\}]#})" &&
+		for i in {1..9}; do
+		    zstyle -s "${ctxt}:$i" src-cmd srccmd
+		    if [[ -n $srccmd ]]; then
+			checksum="${$(print ${srccmd%%\#[^)\}]#}|${checksumcmd})[1,5]}"
+			cachefile2="${tmpdir}/zfzf_${checksum}"
+			zstyle -s "${ctxt}:${srccmd}" preview prevopt || \
+			    zstyle -s "${ctxt}:${(q)srccmd}" preview prevopt || \
+			    prevopt="print - \"{}\""
+			zstyle -s "${ctxt}:${srccmd}" query-pat p1 || zstyle -s "${ctxt}:${(q)srccmd}" query-pat p1
+			zstyle -s "${ctxt}:${srccmd}" replace-str p2 || zstyle -s "${ctxt}:${(q)srccmd}" replace-str p2
+			zstyle -s "${ctxt}:${srccmd}" helpfile helpfile || zstyle -s "${ctxt}:${(q)srccmd}" helpfile helpfile
+			cmdwd="${${(z)${aliases[${${(z)srccmd}[(w)1]}]:-${${(z)srccmd}[(w)1]}}}[(wps:$'\0':)1]}"
+			zstyle -s "${ctxt}:${srccmd}" fzf-histfile fzfhistfile2 || \
+			    zstyle -s "${ctxt}:${(q)srccmd}" fzf-histfile fzfhistfile2 || \
+			    fzfhistfile2="${checksum}"
+			if [[ -a $cachefile2 ]]; then
+			    srccmd2="cat ${cachefile2}"
+			else
+			    srccmd2="${srccmd}"
+			fi
+			# TODO: why does changing \"\" to '' break this??:
+			fzfopts+=",alt-${i}:execute(print \"${(q)prevopt}\n${(q)p1}\n${(q)p2}\n${helpfile}\n${fzfhistfile2}\" > ${statefile})+reload(${srccmd2%%\#[^)\}]#})"
+
+		    fi
+		done && fzfopts+=",alt-D:execute(if [[ -a ${cachefile1} ]] rm ${cachefile1} )'"
+	    fzfopts+=" --header='alt-0/9=switch input,alt-D=rm cache,ctrl-h=help,${FZF_HEADER}"
+	    if [[ -n $header ]]; then
+		fzfopts+="
+${header}"
+	    fi
+	    fzfopts+="'"
+	    zstyle -s "${ctxt}:${REPLY}" other-opts fzfopts2 || zstyle -s "${ctxt}:${(q)REPLY}" other-opts fzfopts2 || \
+		fzfopts2="--multi --height=~50% --preview-window=right:wrap"
+	    if [[ -n ${debug} ]]; then
+		print "\nfzf-histfile=${fzfhistfile1}"
+		print "cachefile1=${cachefile1}\ncache=${docache}\ncachetimeout=${cachetimeout}\ncacheaux=${cacheaux}"
+		print "previewcmd=${previewcmd}\npreviewopt=${previewopt}"
+		print "fzfopts=${fzfopts}\nother-opts=${fzfopts2}"
+	    fi
+	    # Prompt the user for an item from the command output using fzf (don't use --print-query here since the "zstyle -L"
+	    # src-cmd needs to print to the shell prompt from a keybinding action)
+	    print -l -r - ${cmdoutput} | eval "fzf ${fzfopts} ${fzfopts2}"|\
+		while read retval;do lines+=${retval};done
+	elif [[ -n ${WIDGET} ]]; then
+	    zle -M "zfzf: \"${REPLY}\" returned error code ${err}"
+	else
+	    print "zfzf: \"${REPLY}\" returned error code ${err}"
+	fi
+    } always {
+	p1="$(sed -n '2p' ${statefile})"
+	p2="$(sed -n '3p' ${statefile})"
+	fzfhistfile2="$(sed -n '5p' ${statefile})"
+	if [[ -n ${debug} ]]; then
+	    print "REPLY=${(q)REPLY}\nquery-pat=${p1}\nreplace-str=${p2}"
+	    print "orig_lbuffer=${orig_lbuffer}\norig_rbuffer=${orig_rbuffer}\nlines=${lines}\nfzfhistfile=${fzfhistfile2}"
+	fi
+	# dirty hack: move last query from initial history file to one corresponding to last command line input
+	# (query history cannot be changed once fzf has started, and we don't want to use --print-query with fzf).
+	if (($(date +%s)-$(stat -c %Y "${histdir}/${fzfhistfile1}") <= 1)); then
+	    local -a lastquery1=("${(f)$(tail -2 ${histdir}/${fzfhistfile1})}")
+	    local lastquery2
+	    if [[ $fzfhistfile1 != $fzfhistfile2 ]]; then
+		lastquery2="$(tail -1 ${histdir}/${fzfhistfile2})"
+		if [[ ${lastquery1[2]} != $lastquery2 ]]; then
+		    print - "${lastquery1[2]}" >> "${histdir}/${fzfhistfile2}"
+		    sed -i '$d' "${histdir}/${fzfhistfile1}"
+		fi
+	    else
+		if [[ ${lastquery1[1]} == ${lastquery1[2]} ]]; then
+		    sed -i '$d' "${histdir}/${fzfhistfile1}"
+		fi
+	    fi
+	fi
+	PROMPT="${orig_prompt}"
+	LBUFFER="${orig_lbuffer}${(@)lines//${~p1}/${(e)p2}}"
+	RBUFFER="${orig_rbuffer}"
+	zle redisplay
+    }
+}
+
