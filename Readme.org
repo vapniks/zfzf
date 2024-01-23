@@ -1,0 +1,69 @@
+* Commentary
+Bitcoin donations gratefully accepted: 1ArFina3Mi8UDghjarGqATeBgXRDWrsmzo
+
+zsh widget for fzf with stored options. A console for accessing parameters, zstyles, options, etc, at the shell.
+Requires fzf: https://github.com/junegunn/fzf
+
+* Overview
+
+When called as a normal function you should supply it with a string argument containing the command whose
+output will be piped to fzf.
+When used as a widget zfzf will prompt the user for a command, and then pipe its output to fzf (unless a numeric
+prefix arg is used, see below). 
+At this first prompt you have full access to normal editing keybindings, and a history of previous zfzf commands.
+The command will be stored in a history list, and may contain a trailing comment to make it easier to find at another time.
+If the command contains a # (e.g. as part of a globbing pattern), then you should also add a trailing comment to prevent the
+first hash being mistaked for a comment when the line is checked by zfzf.
+
+* History files
+
+The first time it is run the existing history is searched for commands that pipe output to fzf, and these are
+placed in a separate history file for zfzf (default is ~/.zfzf/prompt_history).
+Separate files are used for storing fzf query histories of different source commands. You can navigate the query
+history by pressing ctrl-n/p.
+By default the query history files are stored in ~/.zfzf/ with names being the checksums of the corresponding input
+commands. You can specify a different directory and different filenames with the fzf-histdir and fzf-histfile zstyles (see below).
+This can be useful if you want several different command lines to share the same history file.
+
+* Predefined commands & cached output
+
+You can specify predefined commands which can be accessed by either using a numeric prefix key when you start zfzf,
+or by pressing alt-left/right or alt-1..9 at the fzf prompt after output has already been listed.
+In the latter case the current listing will switch to the output of the command associated with the numeric key pressed,
+and you can press alt-0 to switch back to the initial output (see src-cmd zstyle below).
+By default when switching output the command will be executed in a clean environment which may not produce the desired output.
+Also some commands may be slow to execute. In these cases you may prefer to cache the output which can be done using the
+cache-timeout zstyle to set a timeout for the cache file (see below). This cache file is only created for the initial input,
+which is created in the invoking shell environment. You can cache the current input listing (created in a clean environment)
+by pressing alt-C, or delete the cache by pressing alt-R. By default the cache files are stored in tmpdir (see below),
+which may be wiped on reboot. You can specify a different directory for the cache file of a command using the cachedir option
+(note however that this may be slower to read/write than tmpdir).
+To ensure that the preview environment also mimics the calling environment you could source files containing the output
+of "typeset -p" & "typeset -f". These files can be created automatically in the same directory as the other cache files
+by setting the cache-auxiliary to a timeout value.
+These features will only work if you have a checksum command such as md5sum installed on your system.
+
+* Preview window, header, help file, output transformation & other zstyles
+
+To specify what should appear in the fzf preview window for a given command use the preview zstyle (see below).
+You can change the preview command for the current listing by entering a command at the prompt and pressing alt-P,
+this is useful when zfzf is used in a pipeline (see below), or with input commands with no zstyle.
+When the alt-v key is pressed the output of the preview command will be piped to ${PAGER}, unless this keybinding
+is overridden using other-opts. The other-opts zstyle can be used to specify other options for fzf such as extra
+keybindings, or to override default fzf options.
+By default a header line showing the default keybindings will be displayed, along with the contents of the $FZF_HEADER
+variable. You can add extra text (e.g. to display info on extra keybindings defined in other-opts) using the header zstyle
+which will display an extra header line containing the extra text.
+You can associate a text file with each input command using the helpfile zstyle. Then when the alt-h key is pressed the
+contents of that file will be displayed by $PAGER. Alternatively you can specify a command to be run to produce the help text.
+You can also specify how selected output lines should be transformed before being placed on the command line when
+the enter key is pressed, e.g. parameter names from typeset output are wrapped in ${}. See the query-pat & replace-str
+zstyles below. Note that this will affect any output that is printed to the command line from actions you may have
+bound to keys using the other-opts zstyle (see below).
+
+* Input from stdin (using zfzf in a pipeline)
+
+zfzf can also be used as a non-widget function and take input from stdin. To specify default options for stdin you should
+use the :zfzf:stdin context with zstyle. However, since there is a wide variety of potential inputs the preview zstyle
+may not be of much use in this case. You can use the alt-P keybinding to specify a preview command (see above) for each
+different input listing.
