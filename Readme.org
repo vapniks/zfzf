@@ -89,3 +89,58 @@ may not be of much use in this case. You can use the alt-P keybinding to specify
 different input listing.
 
 
+
+* Options / zstyles
+The full list of available styles & contexts is shown below:
+
+ - ':zfzf:<N>' src-cmd         : predefined command line to use for numeric argument <N>. After zfzf has started you
+                                 can press alt-<N> to change the input listing to the output of this predefined command.
+                                 You can also use alt-left/right to switch between the different predefined commands.
+ - ':zfzf:f<N>' srcs-file      : file containing zstyles with ':zfzf:*' context strings that will be loaded when the
+                                 corresponding fkey is pressed. This allows you to dynamically alter the predefined commands
+                                 mentioned above, along with any associated preview commands and other options.
+ - ':zfzf' prompt-histfile        : history file for commands entered at the prompt (default=~/.zfzf/prompt_history)
+ - ':zfzf' histsize               : maximum number of items allowed in history file (default=100)
+ - ':zfzf' fzf-histdir            : directory in which to store query history files
+ - ':zfzf:<PATTERN>' fzf-histfile : history filename for fzf queries for output from command lines matching <PATTERN>
+                                 (default is to use a 5 char checksum of the command line). Do not include directory.
+ - ':zfzf' tmpdir                 : temporary directory used to store memoization files and other info
+                                 (default is /dev/shm/zfzf or else /tmp/zfzf).
+ - ':zfzf:<PATTERN>' cache-timeout- if set to <S> then if the initial input command line matches <PATTERN>, its output will be 
+                                 saved to a temporary file, unless that file already exists and is less than <S> seconds
+                                 old. The next time the same command line is used for input, the file will be read
+                                 instead. This is useful when using the alt-1..9 keys to switch between different
+                                 command line inputs as these would otherwise be executed in a subshell with a clean
+                                 environment which might not produce the output you want.
+                                 Note: this requires that a checksum command such as md5sum is available on the system.
+ - ':zfzf:<PATTERN>' cachedir     : directory for storing cache files for commands matching <PATTERN>, instead of the default
+                                 tmpdir. Set this for commands whose cache files should be persistent across reboots.
+ - ':zfzf' checksum-cmd           : a command for creating checksums (default is /usr/bin/md5sum). The command line will be piped
+                                 into this function, and the first 5 chars of the returned checksum used for cache files.
+ - ':zfzf' cache-auxiliary        : if set to <S> then auxiliary files zfzf_parameters & zfzf_functions will be created
+                                 in the temporary directory (tmpdir zstyle) if they don't already exist or are older than
+                                 <S> seconds. These files contain the output of typeset -p & typeset -f respectively,
+                                 and can be sourced in preview commands to ensure that the preview environment mimics
+                                 the calling environment.
+ - ':zfzf:<PATTERN>' preview      : shell code for fzf --preview option for command lines matching <PATTERN>
+                                 (default is "print {}"). NOTE: if you don't get the desired results using this zstyle
+                                 you can override it by adding a --preview=".." to other-opts (see below). However in that
+                                 case the same preview method will be used when you switch inputs by pressing alt-0-9
+ - ':zfzf:<PATTERN>' sepchar      : used internally by the preview code. It should be set to a char that is unlikely
+                                 to occur in the output of command lines matching <PATTERN>. Any lines in the command
+                                 output listing that contain this char cannot be previewed (default is "&")
+ - ':zfzf:<PATTERN>' query-pat    : query-pat & replace-str are used for altering output; 
+ - ':zfzf:<PATTERN>' replace-str  : they are used in a ${(@)LINES//query-pat/replace-str} parameter 
+                                 replacement construct where LINES contains the output lines.
+                                 This means that each line will be compared with the query pattern,
+                                 and if any part matches then that part will be replaced by the
+                                 replacement string. See section 14.8 (Filename Generation) of the
+                                 zsh manual for more info about pattern & replacement strings.
+ - ':zfzf:<PATTERN>' header       : extra text to display under the header line for command lines matching <PATTERN>
+                                 (e.g. to display extra keybindings defined in other-opts).
+ - ':zfzf:<PATTERN>' helpfile     : for command lines matching <PATTERN> the location of a text file, or a command line
+                                 producing text to display when the alt-h key is pressed.
+ - ':zfzf:<PATTERN>' other-opts   : other fzf options used for command lines matching <PATTERN>
+                                 (default is "--multi --height=50% --preview-window=down:wrap").
+ - ':zfzf' debug                  : set to non-empty to print internal debugging info
+

@@ -420,7 +420,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'"
 	    # actions that are read dynamically from files (WARNING: quoting hell)
 	    substidx="|{ztmp={}; sed -E \"s${s}\\\{\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}"
 	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" # TODO: fixme
-	    substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(q)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" 
+	    substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${\${ztmp[@]/%/\\u1234}//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" 
 	    #print - $substidx #DEBUG
 	    for i in {1..5}; do
 	    	substidx+="|{ztmp={$i}; sed -E \"s${s}\\\{$i\\\}${s}\${(qqq)ztmp}${s}\"}"
