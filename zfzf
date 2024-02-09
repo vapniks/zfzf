@@ -4,6 +4,8 @@
 # Allows multiple commands in the same fzf session, e.g. browse parameters, zstyles, options, etc. in the same session.
 # Requires fzf: https://github.com/junegunn/fzf and a checksum command such as md5sum
 #
+# WEBPAGE: https://github.com/vapniks/zfzf
+#
 # OVERVIEW:
 # 
 # When used as a normal zsh function you can either pipe input into STDIN, or supply it with a string argument containing
@@ -178,8 +180,12 @@
 # WARNING: this code involved a lot of string & quotation wrangling to get it to work properly. Alter at your peril.
 # TODO: change help notes (ctrl-h) when input sources change, and change keybindings to match input source (could define
 # all alt-[A-Z] keybindings to load from zfzf_[0-9] files)
-# Use alt-0 for user input command, and no prefix to automatically select input command based on contents of command line?
-# alt-left/right to switch inputs
+# manpage?
+
+if [[ $(basename $SHELL) -neq zsh ]]; then
+    print "zfzf only works with zsh" >&2
+    return 1
+fi
 
 # Helper function to store options for each predefined input source in temporary files.
 # Arguments: command for initial input, tmp directory, checksum command, state file, prefix keys to create...
@@ -238,18 +244,27 @@ zfzf() {
     setopt appendhistory histreduceblanks histsavenodups
     unsetopt extendedhistory # keep the history file simple
     local USAGE="Usage: zfzf [-z <FILE>|-f <N>] [-a <N>|\"<CMD>\"]
-Pipe output from <CMD> through fzf with extra functionality (press ctrl-h to see extra keybindings).
+Pipe output from <CMD> through fzf with extra functionality.
 
  -z <FILE>		load zstyle definitions from <FILE> before starting
  -f <N>			load zstyle definitions from file stored in: zstyle ':zfzf:f<N>' srcs-file
  -a <N>                 use input command stored in: zstyle ':zfzf:<N>' src-cmd
+ -d                     show debug output
  -h 			show this help
-"
-    local option srcsfile zstylerestore inputnum
+
+e.g:     > zstyle -L | zfzf
+or:      > zfzf \"zstyle -L\"
+or store the command in a zstyle like this: > zstyle 'zfzf:1' src-cmd 'zstyle -L'
+then do: > zfzf -a 1
+
+Once started press ctrl-h in the fzf menu to see extra keybindings.
+Detailed documentation is available in the Readme file, or here: https://github.com/vapniks/zfzf
+" # TODO: add example of using preview zstyle. Add manpage or more detailled help option?
+    local option srcsfile zstylerestore inputnum debug
     # read command line options
     # Variables: OPTIND=index of next argument to be processed, OPTARG=set to current option argument
     # Place a colon after every option that has an argument (initial colon means silent error reporting mode)
-    while getopts "z:f:a:h\?" option; do
+    while getopts "z:f:a:dh\?" option; do
 	case $option in # TODO
       	    (z|--zstyles)
 		if [[ -n $srcsfile ]]; then
@@ -270,6 +285,9 @@ Pipe output from <CMD> through fzf with extra functionality (press ctrl-h to see
 	    (a)
 		inputnum=$OPTARG
 		;;
+	    (d)
+		debug=1
+		;;
             (\?|h)
 		echo "$USAGE"
 		return 0
@@ -279,8 +297,8 @@ Pipe output from <CMD> through fzf with extra functionality (press ctrl-h to see
     # load zstyles if required
     if [[ -r $srcsfile ]]; then
 	if /bin/grep -v '^[[:space:]]*\(zstyle[[:space:]]\+.:zfzf:\|#\|$\)' $srcsfile >/dev/null; then
-	    print - "${srcsfile} contains invalid commands. 
-It should only contain zstyle commands with context strings matching ':zfzf:*'"
+	    print - "${srcsfile} contains invalid commands.
+It should only contain zstyle commands with context strings matching ':zfzf:*'" >&2
 	    return 1
 	else
 	    source $srcsfile
@@ -297,13 +315,16 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'"
     	    stdinput+=${line}
     	done
     fi
+    # check PAGER
+    if [[ -z $PAGER ]] print "Warning: PAGER not set, help pages & previews might not work" >&2
+
     typeset -a lines # for storing lines selected in fzf
     local REPLY orig_lbuffer orig_rbuffer orig_prompt histdir histfile histsize err 
     local cmdoutput retval debug i prevopt tmpdir cacheaux
     # set the temporary directory where the state files will be stored
     zstyle -s ":zfzf" tmpdir tmpdir || [[ -d /dev/shm && -w /dev/shm ]] && tmpdir=/dev/shm/zfzf || tmpdir=/tmp/zfzf
     mkdir -p $tmpdir >/dev/null
-    zstyle -s ":zfzf" debug debug
+    : ${debug=${DEBUG:-$(zstyle -L ":zfzf:" debug)}
     # cache parameter & function values if required
     zstyle -s ":zfzf" cache-auxiliary cacheaux
     if [[ -n $cacheaux ]]; then
@@ -329,7 +350,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'"
     fi
     # set the history size and directory
     zstyle -s ":zfzf" histsize histsize || histsize=100
-    zstyle -s ":zfzf" fzf-histdir histdir || histdir="${HOME}/.zfzf"
+    zstyle -s ":zfzf" fzf-histdir histdir || histdir="${HOME}/.zfzf" # TODO: move to ${HOME}/.cache/zfzf / ${XDG_CACHE_HOME}/zfzf
     mkdir -pv ${histdir}
     # save the current command line buffer contents so we can put it back when we're finished
     orig_lbuffer="${LBUFFER}"
@@ -389,7 +410,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'"
 	    checksumcmd="/usr/bin/md5sum"
 	zstyle -s ":zfzf:${REPLY}" cachedir cachedir || zstyle -s ":zfzf:${(q)REPLY}" cachedir cachedir || cachedir=${tmpdir}
 	if [[ -z "$(command -v ${checksumcmd})" ]]; then
-	    print "Cannot find ${checksumcmd}"
+	    print "Cannot find ${checksumcmd}" >&2
 	    return 1
 	fi
 	checksum="${$(print - ${REPLY%%\#[^)\}\#]#}|${checksumcmd})[1,5]}"
@@ -418,9 +439,11 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'"
 	    zstyle -s ":zfzf:${REPLY}" sepchar s || zstyle -s ":zfzf:${(q)REPLY}" sepchar s || s='<'
 	    # the following string is needed to substitute {},{1}, etc. for the associated strings in fzf preview & execute 
 	    # actions that are read dynamically from files (WARNING: quoting hell)
-	    substidx="|{ztmp={}; sed -E \"s${s}\\\{\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}"
+	    #substidx="|{ztmp={}; sed -E \"s${s}\\\{\\\}${s}\${\${\${(qqq)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
+	    substidx="|{ztmp=\"{}\"; sed -E \"s${s}\\\{\\\}${s}\${\${\${(q)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\\\\\$}${s}\"}"
 	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" # TODO: fixme
-	    substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${\${ztmp[@]/%/\\u1234}//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" 
+	    substidx+="|{ztmp=({+}); sed -E -e \"s${s}\\\{\\\+\\\}${s}\${\${\${\${ztmp[@]/%/\\x00}//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
+	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${\${ztmp[@]/%/\\x00}//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}"
 	    #print - $substidx #DEBUG
 	    for i in {1..5}; do
 	    	substidx+="|{ztmp={$i}; sed -E \"s${s}\\\{$i\\\}${s}\${(qqq)ztmp}${s}\"}"
