@@ -182,12 +182,13 @@
 # all alt-[A-Z] keybindings to load from zfzf_[0-9] files)
 # manpage?
 
-if [[ $(basename $SHELL) -neq zsh ]]; then
+if [[ $(basename $SHELL) != zsh ]]; then
     print "zfzf only works with zsh" >&2
     return 1
 fi
 
 # Helper function to store options for each predefined input source in temporary files.
+# This should not normally be called by the user.
 # Arguments: command for initial input, tmp directory, checksum command, state file, prefix keys to create...
 zfzf-set-predefined() {
     local srccmd srccmd2 prevopt p1 p2 helpfile fzfhistfile checksum cachefile opts key binding
@@ -320,11 +321,11 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 
     typeset -a lines # for storing lines selected in fzf
     local REPLY orig_lbuffer orig_rbuffer orig_prompt histdir histfile histsize err 
-    local cmdoutput retval debug i prevopt tmpdir cacheaux
+    local cmdoutput retval i prevopt tmpdir cacheaux
     # set the temporary directory where the state files will be stored
     zstyle -s ":zfzf" tmpdir tmpdir || [[ -d /dev/shm && -w /dev/shm ]] && tmpdir=/dev/shm/zfzf || tmpdir=/tmp/zfzf
     mkdir -p $tmpdir >/dev/null
-    : ${debug=${DEBUG:-$(zstyle -L ":zfzf:" debug)}
+    : ${debug=${DEBUG:-$(zstyle -L ":zfzf:" debug)}}
     # cache parameter & function values if required
     zstyle -s ":zfzf" cache-auxiliary cacheaux
     if [[ -n $cacheaux ]]; then
@@ -441,7 +442,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    # actions that are read dynamically from files (WARNING: quoting hell)
 	    #substidx="|{ztmp={}; sed -E \"s${s}\\\{\\\}${s}\${\${\${(qqq)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
 	    substidx="|{ztmp=\"{}\"; sed -E \"s${s}\\\{\\\}${s}\${\${\${(q)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\\\\\$}${s}\"}"
-	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" # TODO: fixme
+	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" # TODO: fixme (figure out what level of quoting is needed here)
 	    substidx+="|{ztmp=({+}); sed -E -e \"s${s}\\\{\\\+\\\}${s}\${\${\${\${ztmp[@]/%/\\x00}//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
 	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${\${ztmp[@]/%/\\x00}//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}"
 	    #print - $substidx #DEBUG
@@ -519,7 +520,7 @@ ${header}"
 	fi
     } always {
         # the commands in this block are run even if there's an error/user quit
-        unset i
+        unset i 
 	local fzfhistfile2
 	if [[ -a "${statefile}" ]]; then
 	    p1="$(sed -n 3p ${statefile})"
