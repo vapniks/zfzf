@@ -181,7 +181,9 @@
 # TODO: change help notes (ctrl-h) when input sources change, and change keybindings to match input source (could define
 # all alt-[A-Z] keybindings to load from zfzf_[0-9] files)
 # manpage?
-
+# handle ansi color codes?
+# ability to specify multiple commands (for different alt-[0-9] keys)
+# rlwrap plugin to make this work with rlwrap, or zsh -c "..." (ATM it gives error "bind action not specified")
 if [[ $(basename $SHELL) != zsh ]]; then
     print "zfzf only works with zsh" >&2
     return 1
@@ -251,7 +253,7 @@ Pipe output from <CMD> through fzf with extra functionality.
  -f <N>			load zstyle definitions from file stored in: zstyle ':zfzf:f<N>' srcs-file
  -a <N>                 use input command stored in: zstyle ':zfzf:<N>' src-cmd
  -d                     show debug output
- -h 			show this help
+ -h / -\?       	show this help
 
 e.g:     > zstyle -L | zfzf
 or:      > zfzf \"zstyle -L\"
@@ -441,8 +443,8 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    # the following string is needed to substitute {},{1}, etc. for the associated strings in fzf preview & execute 
 	    # actions that are read dynamically from files (WARNING: quoting hell)
 	    #substidx="|{ztmp={}; sed -E \"s${s}\\\{\\\}${s}\${\${\${(qqq)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
-	    substidx="|{ztmp=\"{}\"; sed -E \"s${s}\\\{\\\}${s}\${\${\${(q)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\\\\\$}${s}\"}"
-	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" # TODO: fixme (figure out what level of quoting is needed here)
+	    #substidx="|{ztmp=\"{}\"; sed -E \"s${s}\\\{\\\}${s}\${\${\${(q)ztmp//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
+	    substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${(qqq)ztmp//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}" # TODO: fixme (figure out what level of quoting is needed here)
 	    substidx+="|{ztmp=({+}); sed -E -e \"s${s}\\\{\\\+\\\}${s}\${\${\${\${ztmp[@]/%/\\x00}//(#b)([\{\}\;])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}//\$/\\\\\\\\$}${s}\"}"
 	    #substidx+="|{ztmp=({+}); sed -E \"s${s}\\\{\\\+\\\}${s}\${\${\${ztmp[@]/%/\\x00}//(#b)([\{\}\;\\$])/\\\\\${match[1]}}//\\\"/\\\\\\\\\\\"}${s}\"}"
 	    #print - $substidx #DEBUG
@@ -561,3 +563,7 @@ ${header}"
 # wrapper functions which can be used as widgets 
 for i in {1..10}; eval "zfzf$i() { zfzf -f $i -a \${NUMERIC:-1} } && zle -N zfzf$i" >/dev/null
 unset i
+
+# make sure zfzf is called first time
+zfzf $@
+
