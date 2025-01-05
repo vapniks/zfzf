@@ -20,7 +20,8 @@
 # user defined or predefined command to fzf. At the input command prompt you have full access to normal editing keybindings,
 # and a history of previous zfzf commands. The command will be stored in a history list, and may contain a trailing comment
 # to make it easier to find at a later time. If the command contains a # (e.g. as part of a globbing pattern), then you should
-# also add a trailing comment to prevent the first hash being mistaked for a comment when the line is checked by zfzf.
+# also add a trailing comment (not containing any #'s) to prevent the first hash being mistaked for a comment when the line is
+# checked by zfzf.
 # If prefix arg <N> is used, then input command is obtained from: zstyle ':zfzf:<N>' src-cmd
 #
 # Also wrapper widgets named zfzf1, zfzf2,...,zfzf10 are defined which invoke zfzf with the -a arg set to 1,2,...,10,
