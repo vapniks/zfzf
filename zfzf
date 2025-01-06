@@ -106,9 +106,11 @@
 # ':zfzf' fzf-histdir            - directory in which to store query history files
 # ':zfzf:<PATTERN>' fzf-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
 #                                  Default is "queries_history"), do not include directory.
-#                                  Note: when switching command output only the history file associated with the first command is loaded, but if the
-#                                  command output is changed and there is a different associated history file queries will be saved
-#                                  there.
+#                                  Note: when switching command output only the history file associated with the first command
+#                                  is loaded, but if the command output is changed and there is a different associated history
+#                                  file queries will be saved there. Also note that the length of the <PATTERN>, and the order
+#                                  in which the fzf-histfile lines are defined determines their priority (earlier definitions
+#                                  and more specific patterns get priority).
 # ':zfzf' tmpdir                 - temporary directory used to store memoization files and other info
 #                                  (default is /dev/shm/zfzf or else /tmp/zfzf).
 # ':zfzf:<PATTERN>' cache-timeout- if set to <S> then if the initial input command line matches <PATTERN>, its output will be 
@@ -574,4 +576,3 @@ unset i
 
 # make sure zfzf is called first time
 zfzf $@
-
