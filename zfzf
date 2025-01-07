@@ -200,16 +200,20 @@ fi
 
 # Helper function to store options for each predefined input source in temporary files.
 # This should not normally be called by the user.
-# Arguments: command for initial input, tmp directory, checksum command, state file, keys file, prefix keys to create...
+# Arguments: command for initial input, tmp directory, checksum command, state file, dynamic keys file, keys file, prefix keys to create...
 _zfzf-set-predefined() {
     local srccmd srccmd2 prevopt p1 p2 helpfile fzfhistfile checksum cachefile opts key binding
+    # remove previous descriptions of alt-[1-9] keys from keys file
+    sed -i '/alt-[1-9]/d' ${6}
     opts=" --bind='"
-    for i in ${@[6,-1]}; do
+    for i in ${@[7,-1]}; do
 	if [[ $i -eq 0 ]]; then
 	    srccmd="${1}" # 0 prefix should reload initial input
 	else
 	    zstyle -s ":zfzf:$i" src-cmd srccmd # other prefix keys
 	    opts+=","
+	    # add description to keys file
+	    print "alt-${i} = change input to ${srccmd}" >> ${6}
 	fi
 	if [[ -n $srccmd ]]; then
 	    # get the options for the command associated with this prefix key
@@ -443,11 +447,15 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    # Save info about keybindings to file for viewing when C-h is pressed
 	    keysfile="${tmpdir}/zfzf_keys" # TODO: add help about fzf query patterns?
 	    dynamickeysfile="${tmpdir}/zfzf_dynamic_keys" # to store descriptions of dynamically loaded keys
-	    print "alt-right/left = switch to next/previous input\nalt-0 = switch to original input" > $keysfile
-	    zstyle -L ':zfzf:[1-9]' src-cmd|sed -e 's/^zstyle :zfzf:/alt-/' -e 's/src-cmd/= change input to/' >> $keysfile
+	    print "enter/ctrl-j = accept current input line" > $keysfile
 	    print "alt-h = show help specific to the currently displayed input lines" >> $keysfile
+	    print "alt-v = preview current item" >> $keysfile
 	    print "alt-P = change preview command to current query string" >> $keysfile
+	    print "alt-C = save currently displayed input lines to cache file" >> $keysfile
+	    print "alt-R = remove cache file for current input lines" >> $keysfile
 	    zstyle -L ':zfzf:f*' srcs-file|sed -e 's/^zstyle :zfzf:\(f[0-9]\) .* \(.*\)/\1 = load zstyles from \2/' >> $keysfile
+	    print "alt-right/left = switch to next/previous input\nalt-0 = switch to original input" >> $keysfile
+	    print "\nDYNAMIC KEYS:" >> $keysfile
 	    # Set fzf to read the preview command from the state file, and substitute braces with appropriate word from the
 	    # currently selected line.
 	    statefile="${tmpdir}/zfzf_state" # TODO: make statefile unique for each session
@@ -480,7 +488,7 @@ ${header}"
 	    # Now set the keybindings. 
 	    # use _zfzf-set-predefined to define alt-0-9 keybindings which change the statefile and reload sources.
 	    if [[ ! -a ${tmpdir}/zfzf_set_predefined ]] which _zfzf-set-predefined > ${tmpdir}/zfzf_set_predefined
-	    fzfopts+=$(_zfzf-set-predefined $REPLY $tmpdir $checksumcmd $statefile $dynamickeysfile {0..9})
+	    fzfopts+=$(_zfzf-set-predefined $REPLY $tmpdir $checksumcmd $statefile $dynamickeysfile $keysfile {0..9})
 	    # define alt-left/right to swipe left/right through the input sources   
 	    srccmd2="set -o extendedglob; cachefile=\$(sed -n 7p ${statefile}); srccmd=\$(sed -n 1p ${statefile}); if [[ -a \$cachefile ]]; then print \$((\$(date +%s)-\$(stat -c %Y \${cachefile}))) SECONDS OLD CACHED DATA FROM \${cachefile}; cat \${cachefile}; elif [[ \${(z)srccmd[(w)1]} == stdin ]]; then print Cannot recreate STDIN; else eval \${srccmd}; fi"
 	    fzfopts+=" --bind='alt-left:execute-silent[prefix=\$(sed -n 8p ${statefile}); cp ${tmpdir}/zfzf_\$(((prefix+9)%10)) ${statefile}]+deselect+reload(${srccmd2})'"
@@ -506,7 +514,7 @@ ${header}"
 		zstyle -s ":zfzf:f$i" srcs-file srcsfile
 		if [[ -n $srcsfile ]]; then
 		    # can't use {1..9} here...
-		    fzfopts+=" --bind='f${i}:execute-silent(set -o extendedglob; source ${srcsfile}; source ${tmpdir}/zfzf_set_predefined; _zfzf-set-predefined \"${REPLY}\" $tmpdir $checksumcmd $statefile $dynamickeysfile 1 2 3 4 5 6 7 8 9 >/dev/null)'" 
+		    fzfopts+=" --bind='f${i}:execute-silent(set -o extendedglob; source ${srcsfile}; source ${tmpdir}/zfzf_set_predefined; _zfzf-set-predefined \"${REPLY}\" $tmpdir $checksumcmd $statefile $dynamickeysfile $keysfile 1 2 3 4 5 6 7 8 9 >/dev/null)'"
 		fi
 	    done
 	    # keybindings for updating/removing the cache file (TODO: change these keybindings?)
