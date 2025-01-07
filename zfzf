@@ -447,7 +447,10 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    # Save info about keybindings to file for viewing when C-h is pressed
 	    keysfile="${tmpdir}/zfzf_keys" # TODO: add help about fzf query patterns?
 	    dynamickeysfile="${tmpdir}/zfzf_dynamic_keys" # to store descriptions of dynamically loaded keys
-	    print "enter/ctrl-j = accept current input line" > $keysfile
+	    print "DEFAULT FZF KEYS:" > $keysfile
+	    print - ${${FZF_DEFAULT_OPTS#*--bind \'}%\' --*}|tr \, "\n"|tr \: \=|\
+		grep -v '^\(alt-\([hvPCR0-9]\|left\|right\)\|f[1-9]\|enter\|ctrl-j\)' >> $keysfile
+	    print "\nZFZF KEYS:\nenter/ctrl-j = accept current input line" >> $keysfile
 	    print "alt-h = show help specific to the currently displayed input lines" >> $keysfile
 	    print "alt-v = preview current item" >> $keysfile
 	    print "alt-P = change preview command to current query string" >> $keysfile
