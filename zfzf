@@ -34,7 +34,7 @@
 # The first time it is run the existing history is searched for commands that pipe output to fzf, and these are
 # placed in a separate history file for zfzf (default is ~/.zfzf/prompt_history).
 # The history of queries entered at the fzf prompt are stored in ~/.zfzf/query_history by default, but you can specify
-# different history files for different commands using the fzf-histfile option (see below). The query history can be
+# different history files for different commands using the query-histfile option (see below). The query history can be
 # navigated at the fzf prompt using Ctrl-n/p. Note however that the query history is not altered if you switch to a different
 # command output by pressing alt-left/right/1..9 even if the new command has a different associated history file,
 # but entered queries WILL be saved to the new associated history file.
@@ -110,18 +110,18 @@
 # ':zfzf:f<N>' srcs-file         - file containing zstyles with ':zfzf:*' context strings that will be loaded when the
 #                                  corresponding fkey is pressed. This allows you to dynamically alter the predefined commands
 #                                  mentioned above, along with any associated preview commands and other options.
-#                                  Note: setting fzf-histfile (see below) here only affects where query histories are saved,
-#                                  you should also set fzf-histfile zstyles in the main config to ensure query histories are 
+#                                  Note: setting query-histfile (see below) here only affects where query histories are saved,
+#                                  you should also set query-histfile zstyles in the main config to ensure query histories are 
 #                                  loaded from the same place.
 # ':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=~/.zfzf/prompt_history)
 # ':zfzf' histsize               - maximum number of items allowed in history file (default=100)
 # ':zfzf' fzf-histdir            - directory in which to store query history files
-# ':zfzf:<PATTERN>' fzf-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
-#                                  Default is "queries_history"), do not include directory.
+# ':zfzf:<PATTERN>' query-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
+#                                  Default is "query_history"), do not include directory.
 #                                  Note: when switching command output only the history file associated with the first command
 #                                  is loaded, but if the command output is changed and there is a different associated history
 #                                  file queries will be saved there. Also note that the length of the <PATTERN>, and the order
-#                                  in which the fzf-histfile lines are defined determines their priority (earlier definitions
+#                                  in which the query-histfile lines are defined determines their priority (earlier definitions
 #                                  and more specific patterns get priority).
 # ':zfzf' tmpdir                 - temporary directory used to store memoization files and other info
 #                                  (default is /dev/shm/zfzf or else /tmp/zfzf).
@@ -203,11 +203,7 @@
 # > zstyle ':zfzf:typeset +f' preview "typeset -i fpath=(${fpath}) && ( autoload +XU - {+}; which - {+} )"
 
 # WARNING: this code involved a lot of string & quotation wrangling to get it to work properly. Alter at your peril.
-# TODO: change help notes (ctrl-h) when input sources change, and change keybindings to match input source (could define
-# all alt-[A-Z] keybindings to load from zfzf_[0-9] files)
-# manpage?
-# handle ansi color codes?
-# ability to specify multiple commands (for different alt-[0-9] keys)
+# TODO: manpage? handle ansi color codes? keybinding to add current query to query history
 # rlwrap plugin to make this work with rlwrap, or zsh -c "..." (ATM it gives error "bind action not specified")
 if [[ $(basename $SHELL) != zsh ]]; then
     print "zfzf only works with zsh" >&2
@@ -218,7 +214,7 @@ fi
 # This should not normally be called by the user.
 # Arguments: command for initial input, tmp directory, checksum command, state file, dynamic keys file, keys file, prefix keys to create...
 _zfzf-set-predefined() {
-    local srccmd srccmd2 prevopt p1 p2 helpfile fzfhistfile checksum cachefile opts key binding
+    local srccmd srccmd2 prevopt p1 p2 helpfile queryhistfile checksum cachefile opts key binding
     opts=" --bind='"
     for i in ${@[7,-1]}; do
 	if [[ $i -eq 0 ]]; then
@@ -243,15 +239,15 @@ _zfzf-set-predefined() {
 	    zstyle -s ":zfzf:${srccmd}" query-pat p1 || zstyle -s ":zfzf:${(q)srccmd}" query-pat p1
 	    zstyle -s ":zfzf:${srccmd}" replace-str p2 || zstyle -s ":zfzf:${(q)srccmd}" replace-str p2
 	    zstyle -s ":zfzf:${srccmd}" helpfile helpfile || zstyle -s ":zfzf:${(q)srccmd}" helpfile helpfile
-	    zstyle -s ":zfzf:${srccmd}" fzf-histfile fzfhistfile || \
-		zstyle -s ":zfzf:${(q)srccmd}" fzf-histfile fzfhistfile || fzfhistfile="queries_history"
+	    zstyle -s ":zfzf:${srccmd}" query-histfile queryhistfile || \
+		zstyle -s ":zfzf:${(q)srccmd}" query-histfile queryhistfile || queryhistfile="query_history"
 	    # create state file for this prefix key (TODO: make statefile unique for this session)
 	    print - "${srccmd%%\#[^0\}\#]#}" > "${2}/zfzf_${i}"
 	    print - "${(q)prevopt}" >> "${2}/zfzf_${i}"
 	    print - "${(q)p1}" >> "${2}/zfzf_${i}"
 	    print - "${(q)p2}" >> "${2}/zfzf_${i}"
 	    print - "${helpfile}" >> "${2}/zfzf_${i}"
-	    print - "${fzfhistfile}" >> "${2}/zfzf_${i}"
+	    print - "${queryhistfile}" >> "${2}/zfzf_${i}"
 	    print - "${cachefile}" >> "${2}/zfzf_${i}"
 	    print - $i >> "${2}/zfzf_${i}"
 	    for key in alt-{A..Z}; do
@@ -356,7 +352,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
     if [[ -z $PAGER ]] print "Warning: PAGER not set, help pages & previews might not work" >&2
 
     typeset -a lines # for storing lines selected in fzf
-    local REPLY orig_lbuffer orig_rbuffer orig_prompt histdir histfile histsize err 
+    local REPLY orig_lbuffer orig_rbuffer orig_prompt histdir prompthistfile histsize err 
     local cmdoutput retval i prevopt tmpdir cacheaux
     # set the temporary directory where the state files will be stored
     zstyle -s ":zfzf" tmpdir tmpdir || [[ -d /dev/shm && -w /dev/shm ]] && tmpdir=/dev/shm/zfzf || tmpdir=/tmp/zfzf
@@ -404,13 +400,13 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    REPLY=stdin # TODO: can we work out if we're running under rlwrap using lsof?
 	else 
 	    # create & populate prompt history file if it doesn't already exist
-	    zstyle -s ":zfzf" prompt-histfile histfile || histfile="${HOME}/.zfzf/prompt_history"
-	    if [[ ! -a ${histfile} ]]; then
-    	        print -l - ${(u)${(M)history:#*\| #fzf[^\)]#}//\| #fzf[^\)]#} > "${histfile}"
+	    zstyle -s ":zfzf" prompt-histfile prompthistfile || prompthistfile="${histdir}/prompt_history"
+	    if [[ ! -a ${prompthistfile} ]]; then
+    	        print -l - ${(u)${(M)history:#*\| #fzf[^\)]#}//\| #fzf[^\)]#} > "${prompthistfile}"
 	        export zfzf_last_hist_item="${${(k@)history}[1]}"
             fi
 	    typeset -aU newhistitems zstyleitems
-	    fc -ap ${histfile} ${histsize} # set the history list
+	    fc -ap ${prompthistfile} ${histsize} # set the history list
 	    # add to the prompt history items bound to prefix keys by zstyle
 	    zstyleitems=("${(f)$(zstyle -L ':zfzf:*' src-cmd|sed 's/zstyle :zfzf:. src-cmd .\(.*\)./\1/')}")
 	    local item
@@ -463,7 +459,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	fi
 	err=${?}
 	if [[ ${err} = 0 ]]; then
-	    local fzfhistfile1 fzfopts fzfopts2 statefile keysfile p1 p2 s helpfile srccmd2 substidx
+	    local queryhistfile1 fzfopts fzfopts2 statefile keysfile p1 p2 s helpfile srccmd2 substidx
 	    # create cache file if necessary
 	    if [[ $docache == 1 && $freshfile != 1 ]] print "${cmdoutput}" > $cachefile1
 	    # Save info about keybindings to file for viewing when C-h is pressed
@@ -500,10 +496,10 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    done
 	    previewopt="\$(set -o extendedglob; sed -n 2p ${statefile} ${substidx})"
 	    # set the fzf history file
-	    zstyle -s ":zfzf:${REPLY}" fzf-histfile fzfhistfile1 || zstyle -s ":zfzf:${(q)REPLY}" fzf-histfile fzfhistfile1 || \
-		fzfhistfile1="queries_history"
-	    touch "${histdir}/${fzfhistfile1}"
-	    fzfopts="--history='${histdir}/${fzfhistfile1}' --preview='eval ${previewopt}' "
+	    zstyle -s ":zfzf:${REPLY}" query-histfile queryhistfile1 || \
+		zstyle -s ":zfzf:${(q)REPLY}" query-histfile queryhistfile1 || queryhistfile1="query_history"
+	    touch "${histdir}/${queryhistfile1}"
+	    fzfopts="--history='${histdir}/${queryhistfile1}' --preview='eval ${previewopt}' "
 	    # set the header for the fzf menu
 	    fzfopts+=" --header='${header}' "
 	    # Now set the keybindings. 
@@ -553,7 +549,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    zstyle -s ":zfzf:${REPLY}" other-opts fzfopts2 || zstyle -s ":zfzf:${(q)REPLY}" other-opts fzfopts2 || \
 		fzfopts2="--multi --height=~50% --preview-window=right:wrap"
 	    if [[ -n ${debug} ]]; then
-		print "\nfzf-histfile=${fzfhistfile1}"
+		print "\nquery-histfile=${queryhistfile1}"
 		print "cachefile1=${cachefile1}\ncache=${docache}\ncachetimeout=${cachetimeout}\ncacheaux=${cacheaux}"
 		print "previewopt=${previewopt}"
 		print "fzfopts=${fzfopts}\nother-opts=${fzfopts2}"
@@ -570,30 +566,30 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
     } always {
         # the commands in this block are run even if there's an error/user quit
         unset i 
-	local fzfhistfile2
+	local queryhistfile2
 	if [[ -a "${statefile}" ]]; then
 	    p1="$(sed -n 3p ${statefile})"
 	    p2="$(sed -n 4p ${statefile})"
-	    # last fzf query was saved in $fzfhistfile1, but we want to save it to the end of history file listed
+	    # last fzf query was saved in $queryhistfile1, but we want to save it to the end of history file listed
 	    # on line 6 of the statefile (unless it's already there).
-	    fzfhistfile2="$(sed -n 6p ${statefile})"
-	    if (($(date +%s)-$(stat -c %Y "${histdir}/${fzfhistfile1}") <= 1)); then
-		local -a lastquery1=("${(f)$(tail -2 ${histdir}/${fzfhistfile1})}")
+	    queryhistfile2="$(sed -n 6p ${statefile})"
+	    if (($(date +%s)-$(stat -c %Y "${histdir}/${queryhistfile1}") <= 1)); then
+		local -a lastquery1=("${(f)$(tail -2 ${histdir}/${queryhistfile1})}")
 		local lastquery2
-		if [[ $fzfhistfile1 != $fzfhistfile2 ]]; then
-		    lastquery2="$(tail -1 ${histdir}/${fzfhistfile2})"
+		if [[ $queryhistfile1 != $queryhistfile2 ]]; then
+		    lastquery2="$(tail -1 ${histdir}/${queryhistfile2})"
 		    if [[ ${lastquery1[2]} != $lastquery2 ]]; then
-			print - "${lastquery1[2]}" >> "${histdir}/${fzfhistfile2}"
-			sed -i '$d' "${histdir}/${fzfhistfile1}"
+			print - "${lastquery1[2]}" >> "${histdir}/${queryhistfile2}"
+			sed -i '$d' "${histdir}/${queryhistfile1}"
 		    fi
 		else
-		    if [[ ${lastquery1[1]} == ${lastquery1[2]} ]] sed -i '$d' "${histdir}/${fzfhistfile1}"
+		    if [[ ${lastquery1[1]} == ${lastquery1[2]} ]] sed -i '$d' "${histdir}/${queryhistfile1}"
 		fi
 	    fi
 	fi
 	if [[ -n ${debug} ]]; then
 	    print "REPLY=${(q)REPLY}\nquery-pat=${p1}\nreplace-str=${p2}"
-	    print "orig_lbuffer=${orig_lbuffer}\norig_rbuffer=${orig_rbuffer}\nlines=${lines}\nfzfhistfile=${fzfhistfile2}"
+	    print "orig_lbuffer=${orig_lbuffer}\norig_rbuffer=${orig_rbuffer}\nlines=${lines}\nqueryhistfile=${queryhistfile2}"
 	else
 	    # we no longer need the state files
 	    rm ${tmpdir}/zfzf_{{0..9},state,dynamic_keys} 2>/dev/null
