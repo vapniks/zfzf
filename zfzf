@@ -113,9 +113,9 @@
 #                                  Note: setting query-histfile (see below) here only affects where query histories are saved,
 #                                  you should also set query-histfile zstyles in the main config to ensure query histories are 
 #                                  loaded from the same place.
-# ':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=~/.zfzf/prompt_history)
 # ':zfzf' histsize               - maximum number of items allowed in history file (default=100)
-# ':zfzf' fzf-histdir            - directory in which to store query history files
+# ':zfzf' histdir                - directory in which to store history files
+# ':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=~/.zfzf/prompt_history)
 # ':zfzf:<PATTERN>' query-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
 #                                  Default is "query_history"), do not include directory.
 #                                  Note: when switching command output only the history file associated with the first command
@@ -383,7 +383,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
     fi
     # set the history size and directory
     zstyle -s ":zfzf" histsize histsize || histsize=100
-    zstyle -s ":zfzf" fzf-histdir histdir || histdir="${HOME}/.zfzf" # TODO: move to ${HOME}/.cache/zfzf / ${XDG_CACHE_HOME}/zfzf
+    zstyle -s ":zfzf" histdir histdir || histdir="${HOME}/.zfzf" # TODO: move to ${HOME}/.cache/zfzf / ${XDG_CACHE_HOME}/zfzf
     mkdir -pv ${histdir}
     # save the current command line buffer contents so we can put it back when we're finished
     orig_lbuffer="${LBUFFER}"
@@ -400,13 +400,13 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    REPLY=stdin # TODO: can we work out if we're running under rlwrap using lsof?
 	else 
 	    # create & populate prompt history file if it doesn't already exist
-	    zstyle -s ":zfzf" prompt-histfile prompthistfile || prompthistfile="${histdir}/prompt_history"
-	    if [[ ! -a ${prompthistfile} ]]; then
-    	        print -l - ${(u)${(M)history:#*\| #fzf[^\)]#}//\| #fzf[^\)]#} > "${prompthistfile}"
+	    zstyle -s ":zfzf" prompt-histfile prompthistfile || prompthistfile=prompt_history
+	    if [[ ! -a ${histdir}/${prompthistfile} ]]; then
+    	        print -l - ${(u)${(M)history:#*\| #fzf[^\)]#}//\| #fzf[^\)]#} > "${histdir}/${prompthistfile}"
 	        export zfzf_last_hist_item="${${(k@)history}[1]}"
             fi
 	    typeset -aU newhistitems zstyleitems
-	    fc -ap ${prompthistfile} ${histsize} # set the history list
+	    fc -ap "${histdir}/${prompthistfile}" ${histsize} # set the history list
 	    # add to the prompt history items bound to prefix keys by zstyle
 	    zstyleitems=("${(f)$(zstyle -L ':zfzf:*' src-cmd|sed 's/zstyle :zfzf:. src-cmd .\(.*\)./\1/')}")
 	    local item
