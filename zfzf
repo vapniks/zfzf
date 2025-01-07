@@ -65,6 +65,17 @@
 # preview commands, and other options (e.g. keybindings). The src-file zstyle should be a path to a file containing
 # only comment lines & zstyle commands with context strings matching ':zfzf:*'.
 #
+# DYNAMIC KEYBINDINGS
+#
+# The keybindings alt-A to alt-Z are reserved for dynamic keybindings which can behave differently for different input sources.
+# The actions for these keys are defined by setting zstyles with the same name like this:
+#          zstyle ':zfzf:<PATTERN>' alt-<?> '<SHELL_CMD>'
+# Where <?> is a capital letter (A-Z), and <SHELL_CMD> is a shell command to run when alt-<?> is pressed, and the current 
+# input source matches <PATTERN>.
+# By default zfzf will quit after running the shell command, but this behaviour can be changed by setting the action-template
+# zstyle, e.g: zstyle ':zfzf:alt-[A-C]' action-template 'execute(%)'
+# the % in 'execute(%)' is replaced by code which will execute the corresponding <SHELL_CMD> defined in alt-A/B/C zstyles.
+#
 # PREVIEW WINDOW, HEADER, HELP FILE, OUTPUT TRANSFORMATION & OTHER ZSTYLES:
 #
 # To specify what should appear in the fzf preview window for a given command use the preview zstyle (see below).
@@ -144,9 +155,14 @@
 #                                  and if any part matches then that part will be replaced by the
 #                                  replacement string. See section 14.8 (Filename Generation) of the
 #                                  zsh manual for more info about pattern & replacement strings.
-# ':zfzf:<PATTERN>' header       - extra text to display under the header line for command lines matching <PATTERN>
 # ':zfzf:<PATTERN>' helpfile     - for command lines matching <PATTERN> the location of a text file, or a command line
 #                                  producing text to display when the alt-h key is pressed.
+# ':zfzf:alt-<PAT>' action-template - template for dynamic keybindings of keys with names matching alt-<PAT>,
+#                                  e.g. if alt-<PAT> is alt-[A-D] then the template applies to alt-A, alt-B, alt-C & alt-D
+#                                  Default is 'execute(%)+deselect+abort'. The % is a placeholder which will be replaced by 
+#                                  some code which will evaluate the shell command stored in the zstyle of the key (see below).
+# ':zfzf:<PATTERN>' alt-<A-Z>    - shell command to be evaluated when the corresponding key (alt-A...alt-Z) is pressed,
+#                                  and the current input source matches <PATTERN>.
 # ':zfzf:<PATTERN>' other-opts   - other fzf options used for command lines matching <PATTERN>
 #                                  (default is "--multi --height=50% --preview-window=down:wrap").
 # ':zfzf' debug                  - set to non-empty to print internal debugging info
@@ -504,7 +520,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    # add dynamic keybindings
 	    # (whose corresponding commands where stored in the statefiles by _zfzf-set-predefined)
 	    for key in alt-{A..Z}; do
-	    	zstyle -s ":zfzf:$key" keybind-template template || template='execute(%)+deselect+abort'
+	    	zstyle -s ":zfzf:$key" action-template template || template='execute(%)+deselect+abort'
 	    	#srccmd2="${template//\%/set -o extendedglob; srccmd=\$(grep \"^${key}:\" ${statefile}|sed -e \"s/^${key}://\" ${substidx}); print - \${srccmd\} >/dev/shm/zfzf/test}" #DEBUG
 		srccmd2="${template//\%/set -o extendedglob; srccmd=\$(grep \"^${key}:\" ${statefile}|sed -e \"s/^${key}://\" ${substidx}); eval \${srccmd\}}"
 	    	fzfopts+=" --bind='${key}:${srccmd2}'"
