@@ -165,7 +165,8 @@
 #                                  and the current input source matches <PATTERN>.
 # ':zfzf:<PATTERN>' other-opts   - other fzf options used for command lines matching <PATTERN>
 #                                  (default is "--multi --height=50% --preview-window=down:wrap").
-# ':zfzf:' debug                  - set to non-empty to print internal debugging info
+# ':zfzf' debugfile              - set to the name of a file in which to store internal debugging info.
+#                                  Do not include a directory in the filename, it will be stored in tmpdir
 #
 # TIPS:
 # - You can use the other-opts style to bind keys that print output to the command line, but bear in mind that the output
@@ -279,7 +280,7 @@ Pipe output from <CMD> through fzf with extra functionality.
  -f <N>			load zstyle definitions from file stored in: zstyle ':zfzf:f<N>' srcs-file
  -i <N>                 use input command stored in: zstyle ':zfzf:<N>' src-cmd
  -a '<TEXT>'            display <TEXT> in header
- -d                     show debug output
+ -d <FILE>              write debug output to ${$(zstyle \":zfzf\" tmpdir):-/dev/shm/zfzf}/<FILE>
  -h / -\?       	show this help
 
 e.g:     > zstyle -L | zfzf
@@ -290,12 +291,12 @@ then do: > zfzf -i 1
 Once started press ctrl-h in the fzf menu to see all keybindings.
 Detailed documentation is available in the Readme file, or here: https://github.com/vapniks/zfzf
 " # TODO: add example of using preview zstyle. Add manpage or more detailled help option?
-    local option srcsfile zstylerestore inputnum debug
+    local option srcsfile zstylerestore inputnum debugfile
     local header='ctrl-h=show all keys,alt-1/9=switch input,alt-0=original input,enter/ctrl-j=accept'
     # read command line options
     # Variables: OPTIND=index of next argument to be processed, OPTARG=set to current option argument
     # Place a colon after every option that has an argument (initial colon means silent error reporting mode)
-    while getopts "z:f:a:dh\?" option; do
+    while getopts "z:f:a:d:i:h\?" option; do
 	case $option in 
       	    (z|--zstyles)
 		if [[ -n $srcsfile ]]; then
@@ -320,7 +321,7 @@ Detailed documentation is available in the Readme file, or here: https://github.
 		header=$OPTARG
 		;;
 	    (d)
-		debug=1
+		debugfile=$OPTARG
 		;;
             (\?|h)
 		echo "$USAGE"
@@ -358,7 +359,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
     # set the temporary directory where the state files will be stored
     zstyle -s ":zfzf" tmpdir tmpdir || [[ -d /dev/shm && -w /dev/shm ]] && tmpdir=/dev/shm/zfzf || tmpdir=/tmp/zfzf
     mkdir -p $tmpdir >/dev/null
-    if [[ -z $debug ]] debug=${DEBUG:-$(zstyle -L ":zfzf:" debug)}
+    debugfile=${debugfile:-$(zstyle -L ":zfzf" debugfile)}
     # cache parameter & function values if required
     zstyle -s ":zfzf" cache-auxiliary cacheaux
     if [[ -n $cacheaux ]]; then
@@ -416,7 +417,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    done
 	    # extract new fzf input commands from the standard history list, and add these to the prompt history
 	    if [[ ${zfzf_last_hist_item} != ${${(k@)history}[1]} ]]; then
-		if [[ -z $zfzf_last_hist_item ]] zfzf_last_hist_item=${${(k@)history}[((HISTSIZE-1))]}
+		zfzf_last_hist_item=${zfzf_last_hist_item:-${${(k@)history}[((HISTSIZE-1))]}}
 		local age="$(stat -c %Y ~/.zsh_history)"
 		local awkprog="/.\\| *fzf[^\)]*\$/{if(\$2>${age}){\$1=\$2=\"\";sub(/\\| *fzf.*/,\"\");print}}"
 		newhistitems=("${(f)$(fc -t '%s' -l ${zfzf_last_hist_item}|awk ${awkprog})}")
@@ -549,11 +550,11 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    # other options
 	    zstyle -s ":zfzf:${REPLY}" other-opts fzfopts2 || zstyle -s ":zfzf:${(q)REPLY}" other-opts fzfopts2 || \
 		fzfopts2="--multi --height=~50% --preview-window=right:wrap"
-	    if [[ -n ${debug} ]]; then
-		print "\nquery-histfile=${queryhistfile1}"
-		print "cachefile1=${cachefile1}\ncache=${docache}\ncachetimeout=${cachetimeout}\ncacheaux=${cacheaux}"
-		print "previewopt=${previewopt}"
-		print "fzfopts=${fzfopts}\nother-opts=${fzfopts2}"
+	    if [[ -n $debugfile ]]; then
+		print "\nquery-histfile=${queryhistfile1}" > ${tmpdir}/${debugfile}
+		print "cachefile1=${cachefile1}\ncache=${docache}\ncachetimeout=${cachetimeout}\ncacheaux=${cacheaux}" >> ${tmpdir}/${debugfile}
+		print "previewopt=${previewopt}" >> ${tmpdir}/${debugfile}
+		print "fzfopts=${fzfopts}\nother-opts=${fzfopts2}" >> ${tmpdir}/${debugfile}
 	    fi
 	    # Prompt the user for an item from the command output using fzf (don't use --print-query here since the we may
 	    # need to print to the shell prompt from a keybinding action)
@@ -588,9 +589,9 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 		fi
 	    fi
 	fi
-	if [[ -n ${debug} ]]; then
-	    print "REPLY=${(q)REPLY}\nquery-pat=${p1}\nreplace-str=${p2}"
-	    print "orig_lbuffer=${orig_lbuffer}\norig_rbuffer=${orig_rbuffer}\nlines=${lines}\nqueryhistfile=${queryhistfile2}"
+	if [[ -n ${debugfile} ]]; then
+	    print "REPLY=${(q)REPLY}\nquery-pat=${p1}\nreplace-str=${p2}" >> ${tmpdir}/${debugfile}
+	    print "orig_lbuffer=${orig_lbuffer}\norig_rbuffer=${orig_rbuffer}\nlines=${lines}\nqueryhistfile=${queryhistfile2}" >> ${tmpdir}/${debugfile}
 	else
 	    # we no longer need the state files
 	    rm ${tmpdir}/zfzf_{{0..9},state,dynamic_keys} 2>/dev/null
