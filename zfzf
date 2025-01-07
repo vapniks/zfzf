@@ -203,8 +203,6 @@ fi
 # Arguments: command for initial input, tmp directory, checksum command, state file, dynamic keys file, keys file, prefix keys to create...
 _zfzf-set-predefined() {
     local srccmd srccmd2 prevopt p1 p2 helpfile fzfhistfile checksum cachefile opts key binding
-    # remove previous descriptions of alt-[1-9] keys from keys file
-    sed -i '/alt-[1-9]/d' ${6}
     opts=" --bind='"
     for i in ${@[7,-1]}; do
 	if [[ $i -eq 0 ]]; then
@@ -212,8 +210,11 @@ _zfzf-set-predefined() {
 	else
 	    zstyle -s ":zfzf:$i" src-cmd srccmd # other prefix keys
 	    opts+=","
-	    # add description to keys file
-	    print "alt-${i} = change input to ${srccmd}" >> ${6}
+	    if [[ -n $srccmd ]]; then
+		# replace description in keys file
+		sed -i "/alt-${i}/d" ${6}
+		print "alt-${i} = change input to ${srccmd}" >> ${6}
+	    fi
 	fi
 	if [[ -n $srccmd ]]; then
 	    # get the options for the command associated with this prefix key
