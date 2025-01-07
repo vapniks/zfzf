@@ -442,8 +442,8 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	    if [[ $docache == 1 && $freshfile != 1 ]] print "${cmdoutput}" > $cachefile1
 	    # Save info about keybindings to file for viewing when C-h is pressed
 	    keysfile="${tmpdir}/zfzf_keys" # TODO: add help about fzf query patterns?
-	    dynamickeysfile="${tmpdir}/zfzf_dynamic_keys"   
-	    print "alt-0 = switch to original input" > $keysfile
+	    dynamickeysfile="${tmpdir}/zfzf_dynamic_keys" # to store descriptions of dynamically loaded keys
+	    print "alt-right/left = switch to next/previous input\nalt-0 = switch to original input" > $keysfile
 	    zstyle -L ':zfzf:[1-9]' src-cmd|sed -e 's/^zstyle :zfzf:/alt-/' -e 's/src-cmd/= change input to/' >> $keysfile
 	    print "alt-h = show help specific to the currently displayed input lines" >> $keysfile
 	    print "alt-P = change preview command to current query string" >> $keysfile
@@ -518,6 +518,8 @@ ${header}"
 	    else
 		cp "${tmpdir}/zfzf_0" $statefile
 	    fi
+	    # write descriptions of dynamic keys for current input
+	    grep 'alt-[A-Z]' "${statefile}"|tr \: \= > $dynamickeysfile
 	    # other options
 	    zstyle -s ":zfzf:${REPLY}" other-opts fzfopts2 || zstyle -s ":zfzf:${(q)REPLY}" other-opts fzfopts2 || \
 		fzfopts2="--multi --height=~50% --preview-window=right:wrap"
