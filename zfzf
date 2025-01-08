@@ -11,11 +11,11 @@
 # When used as a normal zsh function you can either pipe input into STDIN, or supply it with a string argument containing
 # the command whose output will be piped to fzf. Alternatively you can use the -i arg to specify a predefined input command
 # that has been stored in the src-cmd zstyle (see PREDEFINED COMMANDS section below).
-# You can also use the -z or -f options to specify a source file to load which contains zstyle statements for the ':zfzf:*'
+# You can also use the -l option to specify a source file to load which contains zstyle statements for the ':zfzf:*'
 # context. For example you may have different sets of predefined input commands (which can be accessed by pressing the
 # alt-0-9/left/right keys) to use in different circumstances (see DYNAMICALLY CHANGING OPTIONS section below).
 # The allowed zstyles are listed below and allow you to customize the behaviour of zfzf.
-# To show function usage use the -h option.
+# To show function usage use the -h option, and to show documentation of zstyles use the -z option.
 # When used as a widget zfzf will prompt the user for a command unless a prefix arg is used, and then pipe the output from the
 # user defined or predefined command to fzf. At the input command prompt you have full access to normal editing keybindings,
 # and a history of previous zfzf commands. The command will be stored in a history list, and may contain a trailing comment
@@ -24,8 +24,8 @@
 # checked by zfzf.
 # If prefix arg <N> is used, then input command is obtained from: zstyle ':zfzf:<N>' src-cmd
 #
-# Also wrapper widgets named zfzf1, zfzf2,...,zfzf10 are defined which invoke zfzf with the -i arg set to 1,2,...,10,
-# and the -f arg set to 1 or the value of the numeric prefix arg if used. If you bind these wrapper widget to keys
+# Also wrapper widgets named zfzf1, zfzf2,...,zfzf10 are defined which invoke zfzf with the -l arg set to 1,2,...,10,
+# and the -i arg set to 1 or the value of the numeric prefix arg if used. If you bind these wrapper widget to keys
 # (e.g. the fkeys) then you have quick access to different sets of input commands (e.g. you could have one for zsh
 # related stuff such as parameters & options, another for package management commands, etc).
 #
@@ -44,10 +44,10 @@
 # You can specify predefined commands which can be accessed by either using a numeric prefix key when you start zfzf,
 # or by pressing alt-left/right or alt-1..9 at the fzf prompt after output has already been listed.
 # In the latter case the current listing will switch to the output of the command associated with the numeric key pressed,
-# and you can press alt-0 to switch back to the initial output. See src-cmd zstyle below.
+# and you can press alt-0 to switch back to the initial output. See documentation of the src-cmd zstyle with "zfzf -z".
 # By default when switching output the command will be executed in a clean environment which may not produce the desired output.
 # Also some commands may be slow to execute. In these cases you may prefer to cache the output which can be done using the
-# cache-timeout zstyle to set a timeout for the cache file (see below). This cache file is only created for the initial input,
+# cache-timeout zstyle to set a timeout for the cache file (see "zfzf -z"). This cache file is only created for the initial input,
 # which is created in the invoking shell environment. You can cache the current input listing (created in a clean environment)
 # by pressing alt-C, or delete the cache by pressing alt-R. By default the cache files are stored in tmpdir (see below),
 # which may be wiped on reboot. You can specify a different directory for the cache file of a command using the cachedir option
@@ -78,7 +78,7 @@
 #
 # PREVIEW WINDOW, HEADER, HELP FILE, OUTPUT TRANSFORMATION & OTHER ZSTYLES:
 #
-# To specify what should appear in the fzf preview window for a given command use the preview zstyle (see below).
+# To specify what should appear in the fzf preview window for a given command use the preview zstyle (see "zfzf -z").
 # You can change the preview command for the current listing by entering a command at the prompt and pressing alt-P,
 # this is useful when zfzf is used in a pipeline (see below), or for input commands with no corresponding preview zstyle.
 # When the alt-v key is pressed the output of the preview command will be piped to ${PAGER}, unless this keybinding
@@ -93,7 +93,7 @@
 # You can also specify how selected output lines should be transformed before being placed on the command line when
 # the enter key is pressed, e.g. parameter names from typeset output are wrapped in ${}. See the query-pat & replace-str
 # zstyles below. Note that this will affect any output that is printed to the command line from actions you may have
-# bound to keys using the other-opts zstyle (see below).
+# bound to keys using the other-opts zstyle (see "zfzf -z").
 #
 # INPUT FROM STDIN (USING ZFZF IN A PIPELINE)
 #
@@ -101,72 +101,6 @@
 # use the :zfzf:stdin context with zstyle. However, since there is a wide variety of potential inputs the preview zstyle
 # may not be of much use in this case. You can use the alt-P keybinding to specify a preview command (see above) for each
 # different input listing.
-# 
-# The full list of available styles & contexts is shown below:
-#
-# ':zfzf:<N>' src-cmd            - predefined command line to use for numeric argument <N>. After zfzf has started you
-#                                  can press alt-<N> to change the input listing to the output of this predefined command.
-#                                  You can also use alt-left/right to switch between the different predefined commands.
-# ':zfzf:f<N>' srcs-file         - file containing zstyles with ':zfzf:*' context strings that will be loaded when the
-#                                  corresponding fkey is pressed. This allows you to dynamically alter the predefined commands
-#                                  mentioned above, along with any associated preview commands and other options.
-#                                  Note: setting query-histfile (see below) here only affects where query histories are saved,
-#                                  you should also set query-histfile zstyles in the main config to ensure query histories are 
-#                                  loaded from the same place.
-# ':zfzf' histsize               - maximum number of items allowed in history file (default=500)
-# ':zfzf' histdir                - directory in which to store history files (default = ~/.zfzf)
-# ':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=${histdir}/prompt_history)
-# ':zfzf:<PATTERN>' query-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
-#                                  Default is "query_history"), do not include directory.
-#                                  Note: when switching command output only the history file associated with the first command
-#                                  is loaded, but if the command output is changed and there is a different associated history
-#                                  file queries will be saved there. Also note that the length of the <PATTERN>, and the order
-#                                  in which the query-histfile lines are defined determines their priority (earlier definitions
-#                                  and more specific patterns get priority).
-# ':zfzf' tmpdir                 - temporary directory used to store memoization files and other info
-#                                  (default is /dev/shm/zfzf or else /tmp/zfzf).
-# ':zfzf:<PATTERN>' cache-timeout- if set to <S> then if the initial input command line matches <PATTERN>, its output will be 
-#                                  saved to a temporary file, unless that file already exists and is less than <S> seconds
-#                                  old. The next time the same command line is used for input, the file will be read
-#                                  instead. This is useful when using the alt-1..9 keys to switch between different
-#                                  command line inputs as these would otherwise be executed in a subshell with a clean
-#                                  environment which might not produce the output you want.
-#                                  Note: this requires that a checksum command such as md5sum is available on the system.
-# ':zfzf:<PATTERN>' cachedir     - directory for storing cache files for commands matching <PATTERN>, instead of the default
-#                                  tmpdir. Set this for commands whose cache files should be persistent across reboots.
-# ':zfzf' checksum-cmd           - a command for creating checksums (default is /usr/bin/md5sum). The command line will be piped
-#                                  into this function, and the first 5 chars of the returned checksum used for cache files.
-# ':zfzf' cache-auxiliary        - if set to <S> then auxiliary files zfzf_parameters & zfzf_functions will be created
-#                                  in the temporary directory (tmpdir zstyle) if they don't already exist or are older than
-#                                  <S> seconds. These files contain the output of typeset -p & typeset -f respectively,
-#                                  and can be sourced in preview commands to ensure that the preview environment mimics
-#                                  the calling environment.
-# ':zfzf:<PATTERN>' preview      - shell code for fzf --preview option for command lines matching <PATTERN>
-#                                  (default is "print {}"). NOTE: if you don't get the desired results using this zstyle
-#                                  you can override it by adding a --preview=".." to other-opts (see below). However in that
-#                                  case the same preview method will be used when you switch inputs by pressing alt-0-9
-# ':zfzf:<PATTERN>' sepchar      - used internally by the preview code. It should be set to a char that is unlikely
-#                                  to occur in the output of command lines matching <PATTERN>. Any lines in the command
-#                                  output listing that contain this char cannot be previewed (default is "<")
-# ':zfzf:<PATTERN>' query-pat    - query-pat & replace-str are used for altering output; 
-# ':zfzf:<PATTERN>' replace-str  - they are used in a ${(@)LINES//query-pat/replace-str} parameter 
-#                                  replacement construct where LINES contains the output lines.
-#                                  This means that each line will be compared with the query pattern,
-#                                  and if any part matches then that part will be replaced by the
-#                                  replacement string. See section 14.8 (Filename Generation) of the
-#                                  zsh manual for more info about pattern & replacement strings.
-# ':zfzf:<PATTERN>' helpfile     - for command lines matching <PATTERN> the location of a text file, or a command line
-#                                  producing text to display when the alt-h key is pressed.
-# ':zfzf:alt-<PAT>' action-template - template for dynamic keybindings of keys with names matching alt-<PAT>,
-#                                  e.g. if alt-<PAT> is alt-[A-D] then the template applies to alt-A, alt-B, alt-C & alt-D
-#                                  Default is 'execute(%)+deselect+abort'. The % is a placeholder which will be replaced by 
-#                                  some code which will evaluate the shell command stored in the zstyle of the key (see below).
-# ':zfzf:<PATTERN>' alt-<A-Z>    - shell command to be evaluated when the corresponding key (alt-A...alt-Z) is pressed,
-#                                  and the current input source matches <PATTERN>.
-# ':zfzf:<PATTERN>' other-opts   - other fzf options used for command lines matching <PATTERN>
-#                                  (default is "--multi --height=50% --preview-window=down:wrap").
-# ':zfzf' debugfile              - set to the name of a file in which to store internal debugging info.
-#                                  Do not include a directory in the filename, it will be stored in tmpdir
 #
 # TIPS:
 # - You can use the other-opts style to bind keys that print output to the command line, but bear in mind that the output
@@ -274,15 +208,16 @@ zfzf() {
     setopt extendedglob histignoredups histignorealldups histfindnodups histignorespace histlexwords
     setopt appendhistory histreduceblanks histsavenodups
     unsetopt extendedhistory # keep the history file simple
-    local USAGE="Usage: zfzf [-z <FILE>|-f <N>] [-i <N>|\"<CMD>\"]
+    local USAGE="Usage: zfzf [-l <FILE>|-l <N>] [-i <N>|\"<CMD>\"] [-a '<TEXT>'] [-h|-z]
 Pipe output from <CMD> through fzf with extra functionality.
 
- -z <FILE>		load zstyle definitions from <FILE> before starting
- -f <N>			load zstyle definitions from file stored in: zstyle ':zfzf:f<N>' srcs-file
+ -l <FILE>/<N>		load zstyle definitions from <FILE>, or if <FILE> is a single digit
+                        load from file stored in zstyle ':zfzf:f<N>' srcs-file
  -i <N>                 use input command stored in: zstyle ':zfzf:<N>' src-cmd
  -a '<TEXT>'            display <TEXT> in header
  -d <FILE>              write debug output to ${$(zstyle \":zfzf\" tmpdir):-/dev/shm/zfzf}/<FILE>
- -h / -\?       	show this help
+ -h / -\?		show this help
+ -z   			show zstyle config documentation (to show current config do: zstyle -L ':zfzf*')
 
 e.g:     > zstyle -L | zfzf
 or:      > zfzf \"zstyle -L\"
@@ -292,27 +227,92 @@ then do: > zfzf -i 1
 Once started press ctrl-h in the fzf menu to see all keybindings.
 Detailed documentation is available in the Readme file, or here: https://github.com/vapniks/zfzf
 " # TODO: add example of using preview zstyle. Add manpage or more detailled help option?
+    local ZSTYLEDOC="ZSTYLE CONFIGURATION:
+
+':zfzf:<N>' src-cmd            - predefined command line to use for numeric argument <N>. After zfzf has started you
+                                 can press alt-<N> to change the input listing to the output of this predefined command.
+                                 You can also use alt-left/right to switch between the different predefined commands.
+':zfzf:f<N>' srcs-file         - file containing zstyles with ':zfzf:*' context strings that will be loaded when the
+                                 corresponding fkey is pressed. This allows you to dynamically alter the predefined commands
+                                 mentioned above, along with any associated preview commands and other options.
+                                 Note: setting query-histfile (see below) here only affects where query histories are saved,
+                                 you should also set query-histfile zstyles in the main config to ensure query histories are 
+                                 loaded from the same place.
+':zfzf' histsize               - maximum number of items allowed in history file (default=500)
+':zfzf' histdir                - directory in which to store history files (default = ~/.zfzf)
+':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=${histdir}/prompt_history)
+':zfzf:<PATTERN>' query-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
+                                 Default is \"query_history\"), do not include directory.
+                                 Note: when switching command output only the history file associated with the first command
+                                 is loaded, but if the command output is changed and there is a different associated history
+                                 file queries will be saved there. Also note that the length of the <PATTERN>, and the order
+                                 in which the query-histfile lines are defined determines their priority (earlier definitions
+                                 and more specific patterns get priority).
+':zfzf' tmpdir                 - temporary directory used to store memoization files and other info
+                                 (default is /dev/shm/zfzf or else /tmp/zfzf).
+':zfzf:<PATTERN>' cache-timeout- if set to <S> then if the initial input command line matches <PATTERN>, its output will be 
+                                 saved to a temporary file, unless that file already exists and is less than <S> seconds
+                                 old. The next time the same command line is used for input, the file will be read
+                                 instead. This is useful when using the alt-1..9 keys to switch between different
+                                 command line inputs as these would otherwise be executed in a subshell with a clean
+                                 environment which might not produce the output you want.
+                                 Note: this requires that a checksum command such as md5sum is available on the system.
+':zfzf:<PATTERN>' cachedir     - directory for storing cache files for commands matching <PATTERN>, instead of the default
+                                 tmpdir. Set this for commands whose cache files should be persistent across reboots.
+':zfzf' checksum-cmd           - a command for creating checksums (default is /usr/bin/md5sum). The command line will be piped
+                                 into this function, and the first 5 chars of the returned checksum used for cache files.
+':zfzf' cache-auxiliary        - if set to <S> then auxiliary files zfzf_parameters & zfzf_functions will be created
+                                 in the temporary directory (tmpdir zstyle) if they don't already exist or are older than
+                                 <S> seconds. These files contain the output of typeset -p & typeset -f respectively,
+                                 and can be sourced in preview commands to ensure that the preview environment mimics
+                                 the calling environment.
+':zfzf:<PATTERN>' preview      - shell code for fzf --preview option for command lines matching <PATTERN>
+                                 (default is \"print {}\"). NOTE: if you don't get the desired results using this zstyle
+                                 you can override it by adding a --preview=\"..\" to other-opts (see below). However in that
+                                 case the same preview method will be used when you switch inputs by pressing alt-0-9
+':zfzf:<PATTERN>' sepchar      - used internally by the preview code. It should be set to a char that is unlikely
+                                 to occur in the output of command lines matching <PATTERN>. Any lines in the command
+                                 output listing that contain this char cannot be previewed (default is \"<\")
+':zfzf:<PATTERN>' query-pat    - query-pat & replace-str are used for altering output; 
+':zfzf:<PATTERN>' replace-str  - they are used in a ${(@)LINES//query-pat/replace-str} parameter 
+                                 replacement construct where LINES contains the output lines.
+                                 This means that each line will be compared with the query pattern,
+                                 and if any part matches then that part will be replaced by the
+                                 replacement string. See section 14.8 (Filename Generation) of the
+                                 zsh manual for more info about pattern & replacement strings.
+':zfzf:<PATTERN>' helpfile     - for command lines matching <PATTERN> the location of a text file, or a command line
+                                 producing text to display when the alt-h key is pressed.
+':zfzf:alt-<PAT>' action-template - template for dynamic keybindings of keys with names matching alt-<PAT>,
+                                 e.g. if alt-<PAT> is alt-[A-D] then the template applies to alt-A, alt-B, alt-C & alt-D
+                                 Default is 'execute(%)+deselect+abort'. The % is a placeholder which will be replaced by 
+                                 some code which will evaluate the shell command stored in the zstyle of the key (see below).
+':zfzf:<PATTERN>' alt-<A-Z>    - shell command to be evaluated when the corresponding key (alt-A...alt-Z) is pressed,
+                                 and the current input source matches <PATTERN>.
+':zfzf:<PATTERN>' other-opts   - other fzf options used for command lines matching <PATTERN>
+                                 (default is \"--multi --height=50% --preview-window=down:wrap\").
+':zfzf' debugfile              - set to the name of a file in which to store internal debugging info.
+                                 Do not include a directory in the filename, it will be stored in tmpdir
+"
     local option srcsfile zstylerestore inputnum debugfile
     local header='ctrl-h=show all keys,alt-1/9=switch input,alt-0=original input,enter/ctrl-j=accept'
     # read command line options
     # Variables: OPTIND=index of next argument to be processed, OPTARG=set to current option argument
     # Place a colon after every option that has an argument (initial colon means silent error reporting mode)
-    while getopts "z:f:a:d:i:h\?" option; do
+    while getopts "l:a:d:i:h\?z" option; do
 	case $option in 
-      	    (z|--zstyles)
-		if [[ -n $srcsfile ]]; then
+      	    (l|--load)
+		if [[ $OPTARG = [1-9] ]]; then
+		    zstyle -s ":zfzf:f${OPTARG}" srcs-file srcsfile
+		    if [[ ! -r $srcsfile ]]; then
+			print "Invalid/missing srcs-file zstyle for \":zfzf:f${OPTARG}\""
+			return 1
+		    fi
+		elif [[ -r $OPTARG ]]; then
+		    srcsfile="${OPTARG}"
+		else
 		    print "$USAGE"
 		    return 1
 		fi
-		srcsfile="${OPTARG}"
-		zstylerestore=$(zstyle -L ':zfzf:*')
-		;;
-	    (f)
-		if [[ -n $srcsfile ]]; then
-		    print "$USAGE"
-		    return 1
-		fi
-		zstyle -s ":zfzf:f${OPTARG}" srcs-file srcsfile
 		zstylerestore=$(zstyle -L ':zfzf:*')
 		;;
 	    (i)
@@ -325,7 +325,11 @@ Detailed documentation is available in the Readme file, or here: https://github.
 		debugfile=$OPTARG
 		;;
             (\?|h)
-		echo "$USAGE"
+		print $USAGE
+		return 0
+		;;
+	    (z)
+		print $ZSTYLEDOC
 		return 0
 		;;
 	esac
