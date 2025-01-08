@@ -113,7 +113,7 @@
 #                                  Note: setting query-histfile (see below) here only affects where query histories are saved,
 #                                  you should also set query-histfile zstyles in the main config to ensure query histories are 
 #                                  loaded from the same place.
-# ':zfzf' histsize               - maximum number of items allowed in history file (default=100)
+# ':zfzf' histsize               - maximum number of items allowed in history file (default=500)
 # ':zfzf' histdir                - directory in which to store history files (default = ~/.zfzf)
 # ':zfzf' prompt-histfile        - history file for commands entered at the prompt (default=${histdir}/prompt_history)
 # ':zfzf:<PATTERN>' query-histfile - history filename for fzf queries for output from command lines matching <PATTERN>.
@@ -206,6 +206,7 @@
 # WARNING: this code involved a lot of string & quotation wrangling to get it to work properly. Alter at your peril.
 # TODO: manpage? handle ansi color codes? keybinding to add current query to query history
 # rlwrap plugin to make this work with rlwrap, or zsh -c "..." (ATM it gives error "bind action not specified")
+# On startup select sources from history using fzf, and then assign to alt-1, alt-2, etc.
 if [[ $(basename $SHELL) != zsh ]]; then
     print "zfzf only works with zsh" >&2
     return 1
@@ -384,7 +385,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	fi
     fi
     # set the history size and directory
-    zstyle -s ":zfzf" histsize histsize || histsize=100
+    zstyle -s ":zfzf" histsize histsize || histsize=500
     zstyle -s ":zfzf" histdir histdir || histdir="${HOME}/.zfzf"
     mkdir -pv ${histdir}
     # save the current command line buffer contents so we can put it back when we're finished
@@ -533,7 +534,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 		zstyle -s ":zfzf:f$i" srcs-file srcsfile
 		if [[ -n $srcsfile ]]; then
 		    # can't use {1..9} here...
-		    fzfopts+=" --bind='f${i}:execute-silent(set -o extendedglob; source ${srcsfile}; source ${tmpdir}/zfzf_set_predefined; _zfzf-set-predefined foo $tmpdir $checksumcmd $statefile $dynamickeysfile $keysfile 1 2 3 4 5 6 7 8 9 >/dev/null)'"
+ 		    fzfopts+=" --bind='f${i}:execute-silent(set -o extendedglob; source ${srcsfile}; source ${tmpdir}/zfzf_set_predefined; _zfzf-set-predefined foo $tmpdir $checksumcmd $statefile $dynamickeysfile $keysfile 1 2 3 4 5 6 7 8 9 >/dev/null)'"
 		fi
 	    done
 	    # keybindings for updating/removing the cache file
