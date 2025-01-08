@@ -533,7 +533,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 		zstyle -s ":zfzf:f$i" srcs-file srcsfile
 		if [[ -n $srcsfile ]]; then
 		    # can't use {1..9} here...
-		    fzfopts+=" --bind='f${i}:execute-silent(set -o extendedglob; source ${srcsfile}; source ${tmpdir}/zfzf_set_predefined; _zfzf-set-predefined \"${REPLY}\" $tmpdir $checksumcmd $statefile $dynamickeysfile $keysfile 1 2 3 4 5 6 7 8 9 >/dev/null)'"
+		    fzfopts+=" --bind='f${i}:execute-silent(set -o extendedglob; source ${srcsfile}; source ${tmpdir}/zfzf_set_predefined; _zfzf-set-predefined foo $tmpdir $checksumcmd $statefile $dynamickeysfile $keysfile 1 2 3 4 5 6 7 8 9 >/dev/null)'"
 		fi
 	    done
 	    # keybindings for updating/removing the cache file
