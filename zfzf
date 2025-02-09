@@ -202,6 +202,28 @@ _zfzf-set-predefined() {
     opts+="'"
     print $opts # return fzf option for keybindings
 }
+# Helper function to store typeset commands for restoring current values of parameters.
+# Arguments: $1=file to save typeset commands to.
+_zfzf-save-parameters() {
+    if [[ ${#} -lt 1 || ${1} = -h || ${1} = --help ]]; then
+	print "Usage: _zfzf-save-parameters FILE"
+	return 1
+    fi
+    # remove builtin parameters before saving to avoid breakage
+    typeset -p|sed -Ee '/^typeset( [-\+][A-Za-z0-9]+)? (-[a-zA-Z0-9]*r[a-zA-Z0-9]*)/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(CURRENT|ISEARCHMATCH_[A-Z]+|(Q?I)?PREFIX|compstate)=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(words|(L|R|CUT|PRE)?BUFFER(LINES)?|CURSOR|HISTNO|LASTABORTEDSEARCH)=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(MARK|NUMERIC|(PRE|POST)DISPLAY|REGION_ACTIVE|region_highlight)=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(UNDO_(LIMIT|CHANGE)_NO|YANK_(START|END)|ZLE_STATE)=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(killring|registers|(Q?I)?SUFFIX(_[A-Z]+)?)=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(KEYS_QUEUED_COUNT|PENDING|YANK_(ACTIVE|START|END))=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(ZLE_RECURSIVE)=/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(dis_)?(functions(_source)?|builtins|reswords|patchars|[gs]?aliases)($|=)/d'\
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(job(dirs|texts|states)|nameddirs|user(dirs|groups))($|=)/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(func(stack|(file|source)?trace)|parameters|modules|dirstack)($|=)/d' \
+	    -e '/^typeset ([-\+][^ ]{1,4} )*(history(words)?|options|commands)($|=)/d' > ${1}
+}
+
 # Main function
 zfzf() {
     emulate -LR zsh
@@ -370,19 +392,7 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
     if [[ -n $cacheaux ]]; then
 	local parametersfile="${tmpdir}/zfzf_parameters" functionsfile="${tmpdir}/zfzf_functions"
 	if [[ ! -a $parametersfile ]] || (($(date +%s)-$(stat -c %Y ${parametersfile}) > cacheaux)); then
-	    # remove builtin parameters before saving to avoid breakage
-    	    typeset -p|sed -Ee '/^typeset( [-\+][A-Za-z0-9]+)? (-[a-zA-Z0-9]*r[a-zA-Z0-9]*)/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(CURRENT|ISEARCHMATCH_[A-Z]+|(Q?I)?PREFIX|compstate)=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(words|(L|R|CUT|PRE)?BUFFER(LINES)?|CURSOR|HISTNO|LASTABORTEDSEARCH)=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(MARK|NUMERIC|(PRE|POST)DISPLAY|REGION_ACTIVE|region_highlight)=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(UNDO_(LIMIT|CHANGE)_NO|YANK_(START|END)|ZLE_STATE)=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(killring|registers|(Q?I)?SUFFIX(_[A-Z]+)?)=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(KEYS_QUEUED_COUNT|PENDING|YANK_(ACTIVE|START|END))=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(ZLE_RECURSIVE)=/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(dis_)?(functions(_source)?|builtins|reswords|patchars|[gs]?aliases)($|=)/d'\
-	                   -e '/^typeset ([-\+][^ ]{1,4} )*(job(dirs|texts|states)|nameddirs|user(dirs|groups))($|=)/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(func(stack|(file|source)?trace)|parameters|modules|dirstack)($|=)/d' \
-			   -e '/^typeset ([-\+][^ ]{1,4} )*(history(words)?|options|commands)($|=)/d' > ${parametersfile}
+	    _zfzf-save-parameters ${parametersfile}
 	fi
 	if [[ ! -a $functionsfile ]] || (($(date +%s)-$(stat -c %Y ${functionsfile}) > cacheaux)); then
     	    typeset -f > ${functionsfile}
