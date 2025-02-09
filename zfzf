@@ -202,28 +202,50 @@ _zfzf-set-predefined() {
     opts+="'"
     print $opts # return fzf option for keybindings
 }
-# Helper function to store typeset commands for restoring current values of parameters.
-# Arguments: $1=file to save typeset commands to.
+# Helper function to store typeset commands for restoring current values of zsh parameters.
+# Arguments: $1=file to save typeset commands to
+#            $2=threshold for age of file in seconds; younger files won't be updated. Default is 0 (always update)
 _zfzf-save-parameters() {
     if [[ ${#} -lt 1 || ${1} = -h || ${1} = --help ]]; then
-	print "Usage: _zfzf-save-parameters FILE"
+	print "Usage: _zfzf-save-parameters FILE [AGE]
+
+Save typeset commands in FILE for restoring current zsh parameter values.
+If AGE is supplied then only update FILE if its older than AGE seconds (default=0)."
 	return 1
     fi
-    # remove builtin parameters before saving to avoid breakage
-    typeset -p|sed -Ee '/^typeset( [-\+][A-Za-z0-9]+)? (-[a-zA-Z0-9]*r[a-zA-Z0-9]*)/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(CURRENT|ISEARCHMATCH_[A-Z]+|(Q?I)?PREFIX|compstate)=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(words|(L|R|CUT|PRE)?BUFFER(LINES)?|CURSOR|HISTNO|LASTABORTEDSEARCH)=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(MARK|NUMERIC|(PRE|POST)DISPLAY|REGION_ACTIVE|region_highlight)=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(UNDO_(LIMIT|CHANGE)_NO|YANK_(START|END)|ZLE_STATE)=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(killring|registers|(Q?I)?SUFFIX(_[A-Z]+)?)=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(KEYS_QUEUED_COUNT|PENDING|YANK_(ACTIVE|START|END))=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(ZLE_RECURSIVE)=/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(dis_)?(functions(_source)?|builtins|reswords|patchars|[gs]?aliases)($|=)/d'\
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(job(dirs|texts|states)|nameddirs|user(dirs|groups))($|=)/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(func(stack|(file|source)?trace)|parameters|modules|dirstack)($|=)/d' \
-	    -e '/^typeset ([-\+][^ ]{1,4} )*(history(words)?|options|commands)($|=)/d' > ${1}
+    # only update file if it doesn't exist yet, or is older than the specified amount
+    if [[ ! -a ${1} ]] || (($(date +%s)-$(stat -c %Y ${1}) > ${2:-0})); then
+	# remove builtin parameters before saving to avoid breakage
+	typeset -p|sed -Ee '/^typeset( [-\+][A-Za-z0-9]+)? (-[a-zA-Z0-9]*r[a-zA-Z0-9]*)/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(CURRENT|ISEARCHMATCH_[A-Z]+|(Q?I)?PREFIX|compstate)=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(words|(L|R|CUT|PRE)?BUFFER(LINES)?|CURSOR|HISTNO|LASTABORTEDSEARCH)=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(MARK|NUMERIC|(PRE|POST)DISPLAY|REGION_ACTIVE|region_highlight)=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(UNDO_(LIMIT|CHANGE)_NO|YANK_(START|END)|ZLE_STATE)=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(killring|registers|(Q?I)?SUFFIX(_[A-Z]+)?)=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(KEYS_QUEUED_COUNT|PENDING|YANK_(ACTIVE|START|END))=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(ZLE_RECURSIVE)=/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(dis_)?(functions(_source)?|builtins|reswords|patchars|[gs]?aliases)($|=)/d'\
+		-e '/^typeset ([-\+][^ ]{1,4} )*(job(dirs|texts|states)|nameddirs|user(dirs|groups))($|=)/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(func(stack|(file|source)?trace)|parameters|modules|dirstack)($|=)/d' \
+		-e '/^typeset ([-\+][^ ]{1,4} )*(history(words)?|options|commands)($|=)/d' > ${1}
+    fi
 }
+# Helper function to store currently defined zsh functions.
+# Arguments: $1=file to save function definitions to
+#            $2=threshold for age of file in seconds; younger files won't be updated. Default is 0 (always update)
+_zfzf-save-functions() {
+    if [[ ${#} -lt 1 || ${1} = -h || ${1} = --help ]]; then
+	print "Usage: _zfzf-save-functions FILE [AGE]
 
+Save zsh function definitions in FILE for restoring later.
+If AGE is supplied then only update FILE if its older than AGE seconds (default=0)."
+	return 1
+    fi
+    # only update file if it doesn't exist yet, or is older than the specified amount
+    if [[ ! -a ${1} ]] || (($(date +%s)-$(stat -c %Y ${1}) > ${2:-0})); then
+    	typeset -f > ${1}
+    fi
+}
 # Main function
 zfzf() {
     emulate -LR zsh
@@ -390,13 +412,8 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
     # cache parameter & function values if required
     zstyle -s ":zfzf" cache-auxiliary cacheaux
     if [[ -n $cacheaux ]]; then
-	local parametersfile="${tmpdir}/zfzf_parameters" functionsfile="${tmpdir}/zfzf_functions"
-	if [[ ! -a $parametersfile ]] || (($(date +%s)-$(stat -c %Y ${parametersfile}) > cacheaux)); then
-	    _zfzf-save-parameters ${parametersfile}
-	fi
-	if [[ ! -a $functionsfile ]] || (($(date +%s)-$(stat -c %Y ${functionsfile}) > cacheaux)); then
-    	    typeset -f > ${functionsfile}
-	fi
+	_zfzf-save-parameters "${tmpdir}/zfzf_parameters" ${cacheaux}
+	_zfzf-save-functions "${tmpdir}/zfzf_functions" ${cacheaux}
     fi
     # set the history size and directory
     zstyle -s ":zfzf" histsize histsize || histsize=500
