@@ -429,7 +429,9 @@ It should only contain zstyle commands with context strings matching ':zfzf:*'" 
 	# either from input command supplied as an argument, or a prefix key, or via STDIN, or prompted from user
 	if [[ -n $srccmd ]]; then 
 	    REPLY="${srccmd}"
-	    print -S - "${REPLY}" # save input command to history file
+	    # append input command to prompt history file
+	    zstyle -s ":zfzf" prompt-histfile prompthistfile || prompthistfile=prompt_history
+	    print - "${REPLY}" >> ${histdir}/${prompthistfile}
 	elif [[ -n $stdinput ]]; then
 	    REPLY=stdin # TODO: can we work out if we're running under rlwrap using lsof?
 	else 
